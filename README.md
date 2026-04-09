@@ -5,7 +5,7 @@
 ## โครงสร้าง
 
 ```text
-sribrown_refactor_v5/
+sribrown_refactor/
 ├─ index.html
 ├─ js/
 │  ├─ app.js
