@@ -1045,9 +1045,97 @@ let currentView = 'admin';
 
             state.pos.paymentMethod = method;
             const member = validation.member;
+
+            // --- ส่วนที่เพิ่มใหม่: ตรวจสอบว่าเป็นเงินสดให้เปิดหน้าคำนวณเงินทอน ---
+            if (method === 'cash') {
+                openCashReceiveModal(total, member);
+                return; // หยุดทำงานตรงนี้ก่อน รอให้พนักงานใส่ยอดเงินรับมา
+            }
+            // --------------------------------------------------------
+
             showConfirm('deduct', total, validation.displayMethod, member);
         }
+        let currentCashTotal = 0;
+        let currentCashMember = null;
 
+        function openCashReceiveModal(total, member) {
+            currentCashTotal = total;
+            currentCashMember = member;
+
+            // ตั้งค่าเริ่มต้นของ Modal
+            document.getElementById('cash-receive-total').innerText = formatMoney(total);
+            document.getElementById('cash-receive-input').value = total; // Default ให้ยอดรับมาเท่ากับยอดเต็ม
+            document.getElementById('cash-change-display').innerText = formatMoney(0);
+            
+            // รีเซ็ตสี (กรณีเคยเป็นสีแดงตอนใส่เงินไม่พอ)
+            const changeDisplay = document.getElementById('cash-change-display');
+            changeDisplay.classList.remove('text-red-500');
+            changeDisplay.classList.add('text-primary');
+
+            openModal('cash-receive-modal');
+            
+            // หน่วงเวลาเล็กน้อยให้หน้าต่างเด้งเสร็จ แล้ว Auto-focus ที่ช่องใส่เงิน
+            setTimeout(() => {
+                const input = document.getElementById('cash-receive-input');
+                input.focus();
+                input.select(); // คลุมดำตัวเลขรอให้พนักงานพิมพ์ทับได้เลย
+            }, 100);
+        }
+
+        function handleCashInputChange() {
+            const received = parseFloat(document.getElementById('cash-receive-input').value) || 0;
+            const change = received - currentCashTotal;
+            const changeDisplay = document.getElementById('cash-change-display');
+
+            if (change < 0) {
+                changeDisplay.innerText = "เงินไม่พอ (" + formatMoney(Math.abs(change)) + ")";
+                changeDisplay.classList.remove('text-primary');
+                changeDisplay.classList.add('text-red-500');
+            } else {
+                changeDisplay.innerText = formatMoney(change);
+                changeDisplay.classList.remove('text-red-500');
+                changeDisplay.classList.add('text-primary');
+            }
+        }
+
+        function addQuickCash(amount) {
+            const input = document.getElementById('cash-receive-input');
+            let current = parseFloat(input.value) || 0;
+            
+            // ถ้ายอดในช่องเป็นยอด Default (พอดีบิล) แล้วกดแบงค์ ให้เปลี่ยนเป็นมูลค่าแบงค์เลย
+            if (current === currentCashTotal) {
+                input.value = amount;
+            } else {
+                input.value = current + amount; // ถ้าไม่ใช่ ให้บวกเพิ่ม
+            }
+            handleCashInputChange();
+        }
+
+        function setExactCash() {
+            document.getElementById('cash-receive-input').value = currentCashTotal;
+            handleCashInputChange();
+        }
+
+        function confirmCashReceive() {
+            const received = parseFloat(document.getElementById('cash-receive-input').value) || 0;
+            
+            if (received < currentCashTotal) {
+                showToast('จำนวนเงินรับมาไม่เพียงพอครับ', 'error');
+                return;
+            }
+
+            const change = received - currentCashTotal;
+            
+            // บันทึกยอดเงินรับและเงินทอน เผื่อต้องใช้แสดงในใบเสร็จ
+            state.pos.cashReceived = received;
+            state.pos.cashChange = change;
+
+            closeModal('cash-receive-modal');
+            
+            // ส่งข้อมูลต่อไปหน้ายืนยัน (แอบเติมข้อมูลเงินทอนให้เห็นในวงเล็บด้วย)
+            const methodStr = change > 0 ? `เงินสด (ทอน ฿${change.toLocaleString('en-US', { minimumFractionDigits: 2 })})` : 'เงินสด (พอดี)';
+            showConfirm('deduct', currentCashTotal, methodStr, currentCashMember);
+        }
         function filterPaymentMembers() {
             const searchInput = document.getElementById('ewallet-search-input');
             const search = searchInput ? searchInput.value.toLowerCase() : '';
@@ -1530,6 +1618,11 @@ Object.assign(window, {
     openHeldOrders,
     recallOrder,
     triggerPayment,
+    openCashReceiveModal,
+    handleCashInputChange,
+    addQuickCash,
+    setExactCash,
+    confirmCashReceive,
     filterPaymentMembers,
     selectPayMember,
     showConfirm,
