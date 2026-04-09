@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>SRI BROWN - POS & Membership</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+    <!-- Google Fonts & Icons -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: "#861b00", "primary-container": "#a83214", background: "#fafaf5", surface: "#ffffff", "surface-low": "#f4f4ef" },
+                    fontFamily: { headline: ["Work Sans", "sans-serif"], body: ["Inter", "sans-serif"] }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fafaf5;
+            background-image: url('https://www.transparenttextures.com/patterns/cream-paper.png');
+        }
+
+        h1,
+        h2,
+        h3,
+        .font-headline {
+            font-family: 'Work Sans', sans-serif;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400;
+        }
+
+        .mobile-mockup {
+            width: 100%;
+            max-width: 414px;
+            height: 850px;
+            max-height: 90vh;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            #print-area,
+            #print-area * {
+                visibility: visible;
+            }
+
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                padding: 10px;
+                font-family: 'Inter', sans-serif;
+                color: black;
+                background: white;
+            }
+        }
+    </style>
+</head>
+
+<body class="text-stone-800 min-h-screen flex overflow-hidden relative selection:bg-primary/20">
+
+    <!-- ================= PRINT AREA ================= -->
+    <div id="print-area" class="hidden"></div>
+
+    <!-- ================= TOAST NOTIFICATION ================= -->
+    <div id="toast"
+        class="fixed top-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white px-6 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-[9999] flex items-center gap-3 -translate-y-5">
+        <span id="toast-icon" class="material-symbols-outlined text-emerald-400">check_circle</span>
+        <span id="toast-msg" class="font-medium text-sm">ข้อความแจ้งเตือน</span>
+    </div>
+
+    <!-- ================= VIEW TOGGLE BUTTON ================= -->
+    <button onclick="toggleView()" id="view-toggle-btn"
+        class="fixed bottom-8 right-8 z-[1000] bg-primary text-white px-6 py-4 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 font-bold">
+        <span class="material-symbols-outlined">swap_horiz</span> สลับหน้าจอลูกค้า
+    </button>
+
+    <!-- ================= LOGIN SCREEN ================= -->
+    <div id="login-screen"
+        class="fixed inset-0 z-[5000] bg-stone-900/95 backdrop-blur-sm flex items-center justify-center transition-opacity duration-300">
+        <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl max-w-sm w-full mx-4 text-center">
+            <div
+                class="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center mx-auto mb-4 font-headline font-bold text-4xl">
+                S</div>
+            <h2 class="text-2xl font-black font-headline mb-1 text-primary">SRI BROWN</h2>
+            <p class="text-xs text-stone-500 mb-8 font-medium">เข้าสู่ระบบพนักงาน (Employee Login)</p>
+            <div class="space-y-4 mb-6">
+                <input id="system-login-pin"
+                    class="w-full py-4 px-5 bg-stone-50 border border-stone-200 rounded-2xl text-3xl font-black text-center tracking-[0.4em] text-primary outline-none focus:border-primary"
+                    type="password" maxlength="6" inputmode="numeric" placeholder="••••••" />
+                <p class="text-[10px] text-stone-400 text-left px-2">* Owner: 999999 | Part-time: 111111</p>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <button onclick="handleLogin()"
+                    class="w-full py-4 bg-stone-800 text-white font-bold rounded-full hover:bg-black active:scale-95 transition-all flex justify-center items-center gap-2 shadow-md">
+                    <span class="material-symbols-outlined text-[20px]">login</span> เข้าระบบ (Login)
+                </button>
+                <div class="flex items-center gap-4 my-2">
+                    <div class="flex-1 border-t border-stone-200"></div>
+                    <span class="text-xs text-stone-400 font-bold uppercase tracking-widest">OR</span>
+                    <div class="flex-1 border-t border-stone-200"></div>
+                </div>
+                <button onclick="handleTimeClock()"
+                    class="w-full py-4 bg-white text-stone-800 border border-stone-200 font-bold rounded-full hover:bg-stone-50 active:scale-95 transition-all flex justify-center items-center gap-2 shadow-sm">
+                    <span class="material-symbols-outlined text-[20px] text-blue-600">schedule</span> ตอกบัตรเข้า/ออกงาน
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODALS ================= -->
+    <!-- 1. Open Shift Modal -->
+    <div id="open-shift-modal"
+        class="fixed inset-0 z-[4500] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/80 backdrop-blur-sm"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200 text-center"
+            id="open-shift-modal-card" data-modal-card>
+            <div
+                class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl font-bold">point_of_sale</span></div>
+            <h3 class="text-xl font-bold font-headline mb-2">เปิดกะการขาย (Open Shift)</h3>
+            <p class="text-xs text-stone-500 mb-6">กรุณาระบุเงินทอนตั้งต้นในลิ้นชัก (Start Cash)</p>
+            <div class="relative mb-6">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-bold">฿</span>
+                <input id="start-cash-input" type="number" placeholder="0"
+                    class="w-full py-4 pl-8 pr-4 bg-stone-50 border border-stone-200 rounded-2xl text-3xl font-black text-center text-emerald-600 outline-none">
+            </div>
+            <button onclick="confirmOpenShift()"
+                class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl active:scale-95 transition-all shadow-md">เปิดลิ้นชักและเริ่มขาย</button>
+        </div>
+    </div>
+
+    <!-- 2. Close Shift Modal -->
+    <div id="close-shift-modal"
+        class="fixed inset-0 z-[4500] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/80 backdrop-blur-sm" onclick="closeModal('close-shift-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-md w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="close-shift-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold font-headline text-stone-800">สรุปยอดปิดกะ (Close Shift)</h3>
+                <button onclick="closeModal('close-shift-modal')"
+                    class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500"><span
+                        class="material-symbols-outlined text-[18px]">close</span></button>
+            </div>
+
+            <div class="space-y-3 mb-6 text-sm text-stone-600 border border-stone-200 rounded-2xl p-5 bg-stone-50">
+                <div class="flex justify-between border-b border-stone-200 border-dashed pb-2"><span>เงินทอนตั้งต้น
+                        (Start Cash):</span><span id="cs-start" class="font-bold text-stone-800">฿0</span></div>
+                <div class="flex justify-between border-b border-stone-200 border-dashed pb-2"><span>ยอดขายเงินสด (Cash
+                        Sales):</span><span id="cs-sales" class="font-bold text-emerald-600">+฿0</span></div>
+                <div class="flex justify-between border-b border-stone-200 border-dashed pb-2"><span>ยอดเติมเงิน
+                        E-Wallet (Cash Topup):</span><span id="cs-topup" class="font-bold text-blue-600">+฿0</span>
+                </div>
+                <div class="flex justify-between border-b border-stone-200 border-dashed pb-2"><span>นำเงินเข้าลิ้นชัก
+                        (Cash In):</span><span id="cs-in" class="font-bold text-emerald-600">+฿0</span></div>
+                <div class="flex justify-between border-b border-stone-200 border-dashed pb-2"><span>ดึงเงินออกลิ้นชัก
+                        (Cash Out):</span><span id="cs-out" class="font-bold text-red-500">-฿0</span></div>
+
+                <div class="flex justify-between items-end pt-2">
+                    <span
+                        class="font-bold text-stone-800 uppercase tracking-widest text-[10px]">เงินสดที่ควรมีในลิ้นชัก</span>
+                    <span id="cs-expected" class="text-3xl font-black text-primary font-headline">฿0</span>
+                </div>
+            </div>
+
+            <p class="text-[10px] text-center text-stone-400 mb-6">*
+                กรุณานับเงินสดในลิ้นชักจริงว่าตรงกับยอดด้านบนหรือไม่ ก่อนกดยืนยันปิดกะ</p>
+            <button onclick="confirmCloseShift()"
+                class="w-full py-4 bg-stone-800 hover:bg-black text-white font-bold rounded-xl active:scale-95 transition-all shadow-md">ยืนยันการปิดกะ
+                (Close Shift)</button>
+        </div>
+    </div>
+
+    <!-- 3. Record Cash/Expense Modal -->
+    <div id="expense-form-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('expense-form-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="expense-form-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="exp-modal-title">บันทึกรายรับ/รายจ่าย</h3>
+                </div>
+                <button onclick="closeModal('expense-form-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <input type="hidden" id="exp-type-input">
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">พนักงานผู้ทำรายการ
+                        *</label>
+                    <select id="exp-emp-input"
+                        class="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none font-bold text-stone-700"></select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">ช่องทางเงิน *</label>
+                    <select id="exp-method-input"
+                        class="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none">
+                        <option value="drawer">💵 เงินสดในลิ้นชัก (กระทบยอดกะ)</option>
+                        <option value="bank">📱 โอนเงินบัญชีร้าน (ไม่กระทบกะ)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">หมวดหมู่รายการ
+                        *</label>
+                    <select id="exp-category-input"
+                        class="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none"></select>
+                </div>
+                <div>
+                    <label
+                        class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">หมายเหตุเพิ่มเติม</label>
+                    <input id="exp-note-input"
+                        class="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none"
+                        type="text" placeholder="ระบุรายละเอียด (ถ้ามี)...">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">จำนวนเงิน (฿)
+                        *</label>
+                    <input id="exp-amount-input"
+                        class="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-xl font-bold text-stone-800 outline-none"
+                        type="number" placeholder="0.00">
+                </div>
+            </div>
+            <button onclick="saveExpense()"
+                class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95">บันทึกรายการ</button>
+        </div>
+    </div>
+
+    <!-- 4. Manager Override PIN Modal -->
+    <div id="manager-pin-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('manager-pin-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="manager-pin-modal-card" data-modal-card>
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline text-primary" id="override-title">ยืนยันสิทธิ์พนักงาน
+                    </h3>
+                    <p class="text-xs text-stone-500" id="override-desc">กรุณาระบุ PIN 6 หลัก</p>
+                </div>
+                <button onclick="closeModal('manager-pin-modal')"
+                    class="bg-stone-100 w-8 h-8 rounded-full flex items-center justify-center text-stone-500"><span
+                        class="material-symbols-outlined text-[16px]">close</span></button>
+            </div>
+            <input id="manager-pin-input" type="password" maxlength="6" inputmode="numeric" placeholder="••••••"
+                class="w-full py-4 px-5 bg-stone-50 border border-stone-200 rounded-xl text-3xl font-black text-center tracking-[0.4em] text-primary outline-none mb-6">
+            <button onclick="verifyOverridePin()"
+                class="w-full py-3 bg-primary text-white font-bold rounded-xl active:scale-95 transition-all">ยืนยัน</button>
+        </div>
+    </div>
+
+    <!-- 5. Confirm Action Modal -->
+    <div id="confirm-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('confirm-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200 text-center"
+            id="confirm-modal-card" data-modal-card>
+            <div id="modal-icon-container"
+                class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-3xl" id="modal-icon">help</span></div>
+            <h3 class="text-xl font-bold font-headline mb-2" id="modal-title">ยืนยันรายการ</h3>
+            <div class="text-sm text-stone-500 mb-6" id="modal-desc">คุณต้องการทำรายการนี้ใช่หรือไม่?</div>
+            <div class="flex gap-3">
+                <button onclick="closeModal('confirm-modal')"
+                    class="flex-1 py-3 bg-stone-100 text-stone-600 font-bold rounded-xl">ยกเลิก</button>
+                <button onclick="executeTransaction()" id="modal-confirm-btn"
+                    class="flex-1 py-3 bg-primary text-white font-bold rounded-xl">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Payment Success Modal -->
+    <div id="payment-success-modal"
+        class="fixed inset-0 z-[2005] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-2xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200 text-center"
+            id="payment-success-modal-card" data-modal-card>
+            <div
+                class="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-inner">
+                <span class="material-symbols-outlined text-5xl font-bold">check_circle</span></div>
+            <h3 id="success-title" class="text-xl font-bold font-headline mb-1">ทำรายการสำเร็จ!</h3>
+            <div id="success-details-box"
+                class="bg-stone-50 p-4 rounded-xl border border-stone-100 my-5 text-sm text-left shadow-inner text-stone-600 space-y-2">
+            </div>
+            <div id="success-docs-status" class="space-y-2 mb-6 text-left"></div>
+            <div class="flex flex-col gap-2">
+                <button onclick="finishOrder()"
+                    class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95">ปิด
+                    (ทำรายการใหม่)</button>
+                <button onclick="printReceipt()"
+                    class="w-full py-3 bg-primary/10 text-primary font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95"><span
+                        class="material-symbols-outlined text-[18px]">print</span> พิมพ์ใบเสร็จ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. Select/Search Member Modal (Generic for POS Cart) -->
+    <div id="select-member-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('select-member-modal')">
+        </div>
+        <div class="bg-white p-6 rounded-3xl shadow-xl relative z-10 max-w-md w-full mx-4 flex flex-col max-h-[80vh] transform scale-95 transition-transform duration-200"
+            id="select-member-modal-card" data-modal-card>
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="select-member-title">ค้นหา/เลือกลูกค้า</h3>
+                    <p class="text-xs text-stone-500 font-medium" id="select-member-desc">ระบุเบอร์โทรศัพท์เพื่อสะสมยอด
+                        หรือ ชำระ E-Wallet</p>
+                </div>
+                <button onclick="closeModal('select-member-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="relative mb-4">
+                <span
+                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-lg">search</span>
+                <input id="select-member-search-input" type="text" oninput="filterSelectMembers()"
+                    class="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="ค้นหาชื่อ หรือ เบอร์โทรศัพท์...">
+            </div>
+            <div id="select-member-list" class="overflow-y-auto space-y-2 flex-1 pb-2"></div>
+        </div>
+    </div>
+
+    <!-- 8. E-Wallet Target Selection Modal -->
+    <div id="ewallet-pay-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('ewallet-pay-modal')"></div>
+        <div class="bg-white p-6 rounded-3xl shadow-xl relative z-10 max-w-md w-full mx-4 flex flex-col max-h-[80vh] transform scale-95 transition-transform duration-200"
+            id="ewallet-pay-modal-card" data-modal-card>
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="member-select-title">ชำระผ่าน E-Wallet</h3>
+                    <p class="text-xs text-stone-500 font-medium">ยอดที่ต้องชำระ: <span id="ewallet-pay-amount-display"
+                            class="font-bold text-primary">฿0.00</span></p>
+                </div>
+                <button onclick="closeModal('ewallet-pay-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="relative mb-4"><span
+                    class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-lg">search</span><input
+                    id="ewallet-search-input" type="text" oninput="filterPaymentMembers()"
+                    class="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="ค้นหาชื่อ หรือ เบอร์โทรศัพท์..."></div>
+            <div id="ewallet-member-select-list" class="overflow-y-auto space-y-2 flex-1 pb-2"></div>
+        </div>
+    </div>
+
+    <!-- 9. Topup Amount Input Modal -->
+    <div id="topup-amount-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('topup-amount-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200 text-center"
+            id="topup-amount-modal-card" data-modal-card>
+            <h3 class="text-lg font-bold font-headline mb-4">ระบุยอดเติมเงิน</h3>
+            <div class="bg-stone-50 rounded-xl p-3 mb-4 flex items-center justify-center gap-2 border border-stone-100">
+                <span class="material-symbols-outlined text-stone-400">person</span><span id="topup-target-name"
+                    class="font-bold text-sm">ชื่อลูกค้า</span></div>
+            <input id="topup-amount-input" type="number" placeholder="0"
+                class="w-full py-4 bg-white border border-stone-200 rounded-2xl text-4xl font-black text-center text-emerald-600 outline-none mb-6">
+            <button onclick="proceedToTopupConfirm()"
+                class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95">ดำเนินการต่อ</button>
+        </div>
+    </div>
+
+    <!-- 10. Add/Edit Member Modal -->
+    <div id="member-form-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('member-form-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="member-form-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="mem-modal-title">ข้อมูลสมาชิก</h3>
+                </div>
+                <button onclick="closeModal('member-form-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="space-y-3 mb-6">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[10px] font-bold text-stone-500">ชื่อจริง *</label><input id="mem-name"
+                            class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none" type="text"></div>
+                    <div><label class="text-[10px] font-bold text-stone-500">ชื่อเล่น *</label><input id="mem-nick"
+                            class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none" type="text"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[10px] font-bold text-stone-500">เบอร์โทรศัพท์ *</label><input
+                            id="mem-phone"
+                            class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm font-bold tracking-widest text-primary outline-none"
+                            type="tel"></div>
+                    <div><label class="text-[10px] font-bold text-stone-500">วัน/เดือน/ปีเกิด</label><input id="mem-dob"
+                            class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none text-stone-500"
+                            type="date"></div>
+                </div>
+                <div><label class="text-[10px] font-bold text-stone-500">รหัส PIN 6 หลัก *</label><input id="mem-pin"
+                        class="w-full p-2.5 bg-stone-50 border rounded-lg text-center tracking-[0.3em] font-black outline-none"
+                        type="password" maxlength="6" inputmode="numeric"></div>
+            </div>
+            <button onclick="saveMember()"
+                class="w-full py-3 bg-primary text-white font-bold rounded-xl active:scale-95">บันทึกข้อมูล</button>
+        </div>
+    </div>
+
+    <!-- 11. Add/Edit Employee Modal -->
+    <div id="employee-form-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('employee-form-modal')">
+        </div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="employee-form-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="emp-modal-title">ข้อมูลพนักงาน</h3>
+                </div>
+                <button onclick="closeModal('employee-form-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <input type="hidden" id="emp-id">
+            <div class="flex items-center gap-4 mb-4">
+                <div
+                    class="relative w-16 h-16 rounded-full bg-stone-200 flex items-center justify-center overflow-hidden border border-stone-300 cursor-pointer group shrink-0">
+                    <img id="emp-modal-pic" src="" class="w-full h-full object-cover hidden">
+                    <span id="emp-modal-icon" class="material-symbols-outlined text-stone-400 text-2xl">person</span>
+                    <div
+                        class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span class="material-symbols-outlined text-white text-sm">edit</span>
+                    </div>
+                    <input type="file" accept="image/*" onchange="previewEmpPic(event)"
+                        class="absolute inset-0 opacity-0 cursor-pointer">
+                </div>
+                <div class="flex-1 space-y-1">
+                    <label class="text-[10px] font-bold text-stone-500">ชื่อพนักงาน *</label>
+                    <input id="emp-name" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"
+                        type="text" placeholder="ระบุชื่อพนักงาน">
+                </div>
+            </div>
+            <div class="space-y-3 mb-6">
+                <div><label class="text-[10px] font-bold text-stone-500">ตำแหน่ง</label>
+                    <select id="emp-role" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none">
+                        <option value="Owner">Owner</option>
+                        <option value="Administrator">Administrator</option>
+                        <option value="Cafe Staff">Cafe Staff</option>
+                        <option value="Part-time Staff">Part-time Staff</option>
+                    </select>
+                </div>
+                <div><label class="text-[10px] font-bold text-stone-500">รหัส PIN 6 หลัก *</label><input id="emp-pin"
+                        class="w-full p-2.5 bg-stone-50 border rounded-lg text-center tracking-[0.3em] font-black outline-none"
+                        type="password" maxlength="6" inputmode="numeric"></div>
+            </div>
+            <button onclick="saveEmployee()"
+                class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95">บันทึกพนักงาน</button>
+        </div>
+    </div>
+
+    <!-- 12. Held Orders Modal -->
+    <div id="held-orders-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('held-orders-modal')"></div>
+        <div class="bg-white p-6 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 flex flex-col max-h-[80vh] transform scale-95 transition-transform duration-200"
+            id="held-orders-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold font-headline">บิลที่พักไว้ (Hold)</h3><button
+                    onclick="closeModal('held-orders-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div id="held-orders-list" class="overflow-y-auto space-y-2 flex-1 pb-2"></div>
+        </div>
+    </div>
+
+    <!-- 13. Sub-Options Menu Modal -->
+    <div id="sub-option-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('sub-option-modal')"></div>
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl relative z-10 max-w-md w-full mx-4 transform scale-95 transition-transform duration-200 flex flex-col max-h-[90vh] overflow-hidden"
+            id="sub-option-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <div>
+                    <h3 class="text-xl font-bold font-headline" id="sub-opt-title">ชื่อเมนู</h3>
+                    <p class="text-xs text-stone-500 font-bold" id="sub-opt-base-price">ราคา 0 ฿</p>
+                </div>
+                <button onclick="closeModal('sub-option-modal')"
+                    class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500"><span
+                        class="material-symbols-outlined text-[18px]">close</span></button>
+            </div>
+            <div class="overflow-y-auto space-y-5 pb-4">
+                <div id="section-type"><label
+                        class="text-[10px] font-label font-bold text-stone-500 tracking-widest uppercase mb-2 block">รูปแบบ</label>
+                    <div class="grid grid-cols-3 gap-2" id="sub-opt-types"></div>
+                </div>
+                <div id="section-roast"><label
+                        class="text-[10px] font-label font-bold text-stone-500 tracking-widest uppercase mb-2 block">ระดับการคั่ว</label>
+                    <div class="grid grid-cols-3 gap-2" id="sub-opt-roast"></div>
+                </div>
+                <div id="section-sweetness"><label
+                        class="text-[10px] font-label font-bold text-stone-500 tracking-widest uppercase mb-2 block">ระดับความหวาน</label>
+                    <div class="grid grid-cols-2 gap-2" id="sub-opt-sweetness"></div>
+                </div>
+                <div id="section-note"><label
+                        class="text-[10px] font-label font-bold text-stone-500 tracking-widest uppercase mb-2 block">รายละเอียดเพิ่มเติม</label><input
+                        type="text" id="sub-opt-note"
+                        class="w-full py-2.5 px-3 bg-stone-50 border border-stone-200 rounded-lg outline-none text-sm"
+                        placeholder="เช่น อุ่นร้อน..." autocomplete="off" /></div>
+            </div>
+            <div class="pt-4 border-t border-stone-100 flex flex-col gap-3 shrink-0">
+                <div class="flex justify-between items-center bg-stone-50 p-2 rounded-xl border border-stone-100">
+                    <span class="text-xs font-bold text-stone-600 pl-2">จำนวน (Quantity)</span>
+                    <div class="flex items-center gap-3 bg-white border border-stone-200 rounded-lg p-1 shadow-sm">
+                        <button onclick="changeModalQty(-1)"
+                            class="w-8 h-8 flex justify-center items-center text-stone-500 hover:bg-stone-100 rounded-md transition-colors"><span
+                                class="material-symbols-outlined text-[18px]">remove</span></button>
+                        <span id="modal-qty" class="text-sm font-bold w-6 text-center">1</span>
+                        <button onclick="changeModalQty(1)"
+                            class="w-8 h-8 flex justify-center items-center text-stone-500 hover:bg-stone-100 rounded-md transition-colors"><span
+                                class="material-symbols-outlined text-[18px]">add</span></button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <p class="text-[10px] font-bold text-stone-500 uppercase">ราคารวม</p>
+                        <p class="text-2xl font-black text-primary" id="sub-opt-total-price">฿0</p>
+                    </div>
+                    <button onclick="confirmSubOptions()"
+                        class="flex-1 py-3 px-4 font-bold rounded-xl text-white bg-primary active:scale-95 transition-all shadow-md">เพิ่มลงบิล</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 14. Member Profile Deep View Modal -->
+    <div id="member-profile-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('member-profile-modal')">
+        </div>
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl relative z-10 max-w-md w-full mx-4 transform scale-95 transition-transform duration-200 flex flex-col max-h-[85vh] overflow-hidden"
+            id="member-profile-modal-card" data-modal-card>
+            <div class="flex justify-between items-start mb-4 shrink-0">
+                <div class="flex items-center gap-4">
+                    <div id="mp-pic-container"
+                        class="w-14 h-14 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 font-bold text-lg overflow-hidden border border-stone-300">
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold font-headline leading-tight" id="mp-name">ชื่อลูกค้า</h3>
+                        <p class="text-xs text-stone-500 mt-0.5" id="mp-phone">08X-XXX-XXXX</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('member-profile-modal')"
+                    class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500"><span
+                        class="material-symbols-outlined text-[18px]">close</span></button>
+            </div>
+            <div class="grid grid-cols-2 gap-3 shrink-0 mb-4">
+                <div class="bg-surface-low p-3 rounded-2xl border border-stone-100">
+                    <p class="text-[10px] text-stone-500 font-bold tracking-widest uppercase">ระดับสมาชิก</p>
+                    <p class="text-sm font-bold text-amber-600 mt-1" id="mp-tier">Platinum</p>
+                </div>
+                <div class="bg-primary/5 p-3 rounded-2xl border border-primary/20">
+                    <p class="text-[10px] text-primary font-bold tracking-widest uppercase">E-Wallet Balance</p>
+                    <p class="text-lg font-black text-primary mt-1 leading-none" id="mp-balance">฿0.00</p>
+                </div>
+            </div>
+            <div class="flex-1 overflow-hidden flex flex-col">
+                <h4 class="text-xs font-bold text-stone-800 mb-2 px-1">ประวัติการทำรายการล่าสุด</h4>
+                <div id="mp-history-list"
+                    class="flex-1 overflow-y-auto space-y-2 pr-2 no-scrollbar bg-stone-50 rounded-xl p-2 border border-stone-100 border-dashed">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 15. Time Clock Logs Modal -->
+    <div id="timeclock-logs-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('timeclock-logs-modal')">
+        </div>
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl relative z-10 max-w-lg w-full mx-4 transform scale-95 transition-transform duration-200 flex flex-col max-h-[85vh] overflow-hidden"
+            id="timeclock-logs-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <div>
+                    <h3 class="text-xl font-bold font-headline text-stone-800">ประวัติตอกบัตรพนักงาน</h3>
+                    <p class="text-xs text-stone-500">Time Clock Logs</p>
+                </div>
+                <button onclick="closeModal('timeclock-logs-modal')"
+                    class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500"><span
+                        class="material-symbols-outlined text-[18px]">close</span></button>
+            </div>
+            <div class="overflow-y-auto flex-1 border border-stone-200 rounded-2xl">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-stone-50 sticky top-0 border-b border-stone-200">
+                        <tr class="text-[10px] font-label font-bold text-stone-500 uppercase tracking-widest">
+                            <th class="p-3">เวลา (Time)</th>
+                            <th class="p-3">ชื่อพนักงาน</th>
+                            <th class="p-3 text-right">รายการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timeclock-logs-table" class="divide-y divide-stone-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 16. Quick Time Clock Modal -->
+    <div id="quick-timeclock-modal"
+        class="fixed inset-0 z-[4000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('quick-timeclock-modal')">
+        </div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200 text-center"
+            id="quick-timeclock-modal-card" data-modal-card>
+            <div class="flex justify-between items-start mb-4 text-left">
+                <div>
+                    <h3 class="text-lg font-bold font-headline text-blue-600">ตอกบัตรเข้า/ออกงาน</h3>
+                    <p class="text-xs text-stone-500">Quick Time Clock</p>
+                </div>
+                <button onclick="closeModal('quick-timeclock-modal')"
+                    class="bg-stone-100 w-8 h-8 rounded-full flex items-center justify-center text-stone-500"><span
+                        class="material-symbols-outlined text-[16px]">close</span></button>
+            </div>
+            <div class="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl font-bold">schedule</span></div>
+            <label class="text-[10px] font-label font-bold text-stone-500 tracking-widest uppercase block mb-2">รหัส PIN
+                6 หลัก ของคุณ</label>
+            <input id="quick-timeclock-pin" type="password" maxlength="6" inputmode="numeric" placeholder="••••••"
+                class="w-full py-4 px-5 bg-stone-50 border border-stone-200 rounded-xl text-3xl font-black text-center tracking-[0.4em] text-blue-600 outline-none mb-6 focus:ring-2 focus:ring-blue-600/20">
+            <button onclick="processQuickTimeClock()"
+                class="w-full py-4 bg-stone-800 text-white font-bold rounded-xl active:scale-95 transition-all">ยืนยันการตอกบัตร</button>
+        </div>
+    </div>
+
+    <!-- 17. Category Form Modal -->
+    <div id="cat-form-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('cat-form-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="cat-form-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="cat-modal-title">หมวดหมู่เมนู</h3>
+                </div>
+                <button onclick="closeModal('cat-form-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <input type="hidden" id="cat-id-input">
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500">ชื่อหมวดหมู่ (เช่น ☕️ กาแฟ) *</label>
+                    <input id="cat-name-input" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"
+                        type="text" placeholder="ระบุชื่อหมวดหมู่">
+                </div>
+            </div>
+            <button onclick="saveCategory()"
+                class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95">บันทึกหมวดหมู่</button>
+        </div>
+    </div>
+
+    <!-- 18. Item Form Modal -->
+    <div id="item-form-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('item-form-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="item-form-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline" id="item-modal-title">รายการเมนู</h3>
+                </div>
+                <button onclick="closeModal('item-form-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <input type="hidden" id="item-id-input">
+            <div class="space-y-3 mb-6">
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500">ชื่อเมนู *</label>
+                    <input id="item-name-input" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"
+                        type="text" placeholder="เช่น เอสเพรสโซ่">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-stone-500">หมวดหมู่ *</label>
+                        <select id="item-cat-select"
+                            class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-stone-500">ราคาพื้นฐาน (฿) *</label>
+                        <input id="item-price-input"
+                            class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none" type="number"
+                            placeholder="0">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500">รูปแบบตัวเลือก (Options Rule) *</label>
+                    <select id="item-rule-select"
+                        class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none text-stone-600">
+                        <option value="none">ไม่มีตัวเลือก (หยิบลงตะกร้าเลย)</option>
+                        <option value="standard">มาตรฐาน (ร้อน/เย็น/ปั่น)</option>
+                        <option value="espresso">เอสเพรสโซ่ (ร้อนลด 20/เย็น/ปั่นเพิ่ม 20)</option>
+                        <option value="americano">อเมริกาโน่ (ร้อน/เย็น)</option>
+                        <option value="iced_only">เย็นเท่านั้น</option>
+                    </select>
+                </div>
+            </div>
+            <button onclick="saveItem()"
+                class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95">บันทึกเมนู</button>
+        </div>
+    </div>
+
+    <!-- NEW: 19. Give Coupon Modal -->
+    <div id="give-coupon-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('give-coupon-modal')"></div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="give-coupon-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline">แจกคูปองให้ลูกค้า</h3>
+                    <p class="text-xs text-stone-500" id="give-coupon-member-name">ชื่อลูกค้า</p>
+                </div>
+                <button onclick="closeModal('give-coupon-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <input type="hidden" id="give-coupon-member-id">
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label
+                        class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">เลือกคูปองที่ต้องการแจก
+                        *</label>
+                    <select id="give-coupon-select"
+                        class="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none font-bold text-stone-700"></select>
+                </div>
+            </div>
+            <button onclick="confirmGiveCoupon()"
+                class="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl active:scale-95 shadow-md transition-colors">แจกคูปองทันที</button>
+        </div>
+    </div>
+
+    <!-- NEW: 20. Add Coupon Template Modal -->
+    <div id="coupon-template-modal"
+        class="fixed inset-0 z-[2000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onclick="closeModal('coupon-template-modal')">
+        </div>
+        <div class="bg-white p-8 rounded-3xl shadow-xl relative z-10 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200"
+            id="coupon-template-modal-card" data-modal-card>
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-lg font-bold font-headline">สร้างรูปแบบคูปอง</h3>
+                </div>
+                <button onclick="closeModal('coupon-template-modal')" class="text-stone-400"><span
+                        class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500">ชื่อคูปอง (เช่น ฟรีเครื่องดื่ม 1 แก้ว) *</label>
+                    <input id="ct-name" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"
+                        type="text" placeholder="ระบุชื่อคูปอง">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-stone-500">ประเภทคูปอง *</label>
+                    <select id="ct-type" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"
+                        onchange="toggleCtValueInput()">
+                        <option value="free_drink">ฟรีเครื่องดื่ม (หัก 100% แก้วถูกสุด)</option>
+                        <option value="free_bakery">ฟรีเบเกอรี่ (หัก 100% ขนมถูกสุด)</option>
+                        <option value="fixed_discount">ส่วนลดเงินสด (หักท้ายบิล)</option>
+                    </select>
+                </div>
+                <div id="ct-value-container" class="hidden">
+                    <label class="text-[10px] font-bold text-stone-500">มูลค่าส่วนลด (บาท) *</label>
+                    <input id="ct-value" class="w-full p-2.5 bg-stone-50 border rounded-lg text-sm outline-none"
+                        type="number" placeholder="เช่น 20">
+                </div>
+            </div>
+            <button onclick="saveCouponTemplate()"
+                class="w-full py-3 bg-stone-800 text-white font-bold rounded-xl active:scale-95 transition-colors">บันทึกคูปอง</button>
+        </div>
+    </div>
+
+
+    <!-- ================= ADMIN VIEW ================= -->
+    <div id="admin-view" class="flex-1 flex flex-col md:flex-row h-screen w-full relative z-10 bg-surface">
+
+        <!-- Sidebar -->
+        <aside class="hidden md:flex flex-col h-screen w-64 bg-surface-low p-5 border-r border-stone-200 shrink-0">
+            <div class="flex items-center gap-3 mb-8 px-2">
+                <div
+                    class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xl font-headline">
+                    S</div>
+                <div>
+                    <h1 class="text-base font-black text-primary leading-none">SRI BROWN</h1>
+                    <p class="text-[9px] uppercase tracking-widest text-stone-500">POS System</p>
+                </div>
+            </div>
+            <nav class="flex-1 space-y-2">
+                <a onclick="switchTab('pos')" id="tab-pos"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors bg-white text-primary font-bold shadow-sm border border-stone-100"><span
+                        class="material-symbols-outlined"
+                        style="font-variation-settings: 'FILL' 1;">point_of_sale</span><span class="text-sm">จุดขาย
+                        (POS)</span></a>
+                <a onclick="switchTab('menu')" id="tab-menu"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50"><span
+                        class="material-symbols-outlined">restaurant_menu</span><span
+                        class="text-sm">จัดการเมนู</span></a>
+                <a onclick="switchTab('cash')" id="tab-cash"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50"><span
+                        class="material-symbols-outlined">account_balance</span><span
+                        class="text-sm">รายรับ-รายจ่าย</span></a>
+                <a onclick="switchTab('marketing')" id="tab-marketing"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50"><span
+                        class="material-symbols-outlined">campaign</span><span class="text-sm">การตลาด (CRM)</span></a>
+                <a onclick="switchTab('history')" id="tab-history"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50"><span
+                        class="material-symbols-outlined">history</span><span class="text-sm">ประวัติรายการ</span></a>
+                <a onclick="switchTab('members')" id="tab-members"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50"><span
+                        class="material-symbols-outlined">group</span><span class="text-sm">จัดการสมาชิก</span></a>
+                <a onclick="switchTab('employees')" id="tab-employees"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50"><span
+                        class="material-symbols-outlined">badge</span><span class="text-sm">จัดการพนักงาน</span></a>
+                <a onclick="switchTab('dashboard')" id="tab-dashboard"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-stone-600 hover:bg-stone-200/50 mt-4"><span
+                        class="material-symbols-outlined">analytics</span><span class="text-sm">แดชบอร์ด</span></a>
+            </nav>
+            <button onclick="logout()"
+                class="flex items-center justify-center gap-2 text-stone-500 hover:text-primary py-3 text-sm font-bold mt-auto"><span
+                    class="material-symbols-outlined text-[18px]">logout</span> ออกจากระบบ</button>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+            <header
+                class="flex justify-between items-center px-6 py-4 bg-white/80 backdrop-blur-md border-b border-stone-200 shrink-0 shadow-sm z-20">
+                <div>
+                    <p class="text-[10px] text-stone-500 font-bold uppercase tracking-wider">Today</p>
+                    <p id="sys-time" class="text-sm font-bold">-</p>
+                </div>
+                <div class="flex items-center gap-4">
+
+                    <button onclick="reqCloseShift()" id="btn-close-shift"
+                        class="hidden items-center gap-1.5 px-4 py-2 bg-stone-800 text-white rounded-full text-xs font-bold hover:bg-black transition-colors active:scale-95">
+                        <span class="material-symbols-outlined text-[16px]">lock</span> ปิดกะ
+                    </button>
+
+                    <button onclick="openQuickTimeClock()"
+                        class="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-xs font-bold hover:bg-blue-100 border border-blue-200 transition-colors active:scale-95"><span
+                            class="material-symbols-outlined text-[16px]">schedule</span> ตอกบัตรด่วน</button>
+                    <div class="flex items-center gap-3 pl-4 border-l border-stone-200">
+                        <div class="text-right">
+                            <p id="top-emp-role" class="text-[10px] text-stone-500 font-bold uppercase">-</p>
+                            <p id="top-emp-name" class="text-sm font-bold text-primary">-</p>
+                        </div>
+                        <div
+                            class="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 border border-stone-300 overflow-hidden relative">
+                            <img id="top-emp-pic" src="" class="w-full h-full object-cover hidden">
+                            <span id="top-emp-icon" class="material-symbols-outlined">person</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto p-6 relative" id="main-scroll-area">
+
+                <!-- TAB: POS -->
+                <div id="content-pos"
+                    class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 animate-fade-in block pb-8 h-fit relative">
+
+                    <div id="pos-shift-overlay"
+                        class="absolute inset-0 z-50 bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center rounded-[2rem] border border-stone-200">
+                        <div class="bg-white p-8 rounded-3xl shadow-xl text-center max-w-sm border border-stone-100">
+                            <div
+                                class="w-16 h-16 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto mb-4">
+                                <span class="material-symbols-outlined text-3xl">lock</span></div>
+                            <h2 class="text-xl font-bold font-headline mb-2 text-stone-800">ระบบจุดขายถูกล็อก</h2>
+                            <p class="text-xs text-stone-500 mb-6">กรุณาทำการ "เปิดกะ" และใส่เงินทอนตั้งต้น
+                                เพื่อเริ่มต้นการขายของวันนี้</p>
+                            <button
+                                onclick="openModal('open-shift-modal'); setTimeout(()=>document.getElementById('start-cash-input').focus(), 100);"
+                                class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all">เปิดกะการขาย
+                                (Open Shift)</button>
+                        </div>
+                    </div>
+
+                    <!-- Left: Menus -->
+                    <div
+                        class="lg:w-2/3 bg-white p-4 rounded-[2rem] border border-stone-200 shadow-sm flex flex-col h-fit">
+                        <div class="w-full mb-3 shrink-0">
+                            <label
+                                class="text-[10px] font-bold text-stone-500 tracking-widest uppercase mb-2 block">หมวดหมู่เมนู</label>
+                            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-stone-100"
+                                id="cat-list"></div>
+                        </div>
+                        <div class="pr-1 no-scrollbar">
+                            <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 content-start" id="menu-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Smart Cart -->
+                    <div
+                        class="lg:w-1/3 bg-white p-4 rounded-[2rem] border border-stone-200 shadow-sm flex flex-col h-fit relative">
+
+                        <div class="flex justify-between items-center mb-2 shrink-0">
+                            <h3 class="font-bold font-headline text-lg flex items-center gap-2">ตะกร้า <span
+                                    id="cart-count"
+                                    class="bg-primary text-white text-[10px] px-2 py-0.5 rounded-full hidden">0</span>
+                            </h3>
+                            <button onclick="clearCart()"
+                                class="text-xs text-red-500 font-bold hover:underline">ล้างตะกร้า</button>
+                        </div>
+                        <div class="flex gap-2 mb-2 shrink-0">
+                            <button onclick="holdCart()"
+                                class="flex-1 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg border border-amber-200 active:scale-95">พักบิล</button>
+                            <button onclick="openHeldOrders()"
+                                class="flex-1 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 rounded-lg border border-blue-200 active:scale-95">ดึงบิล
+                                (<span id="held-qty">0</span>)</button>
+                        </div>
+
+                        <!-- Selected Member Info Bar -->
+                        <div id="cart-member-info"
+                            class="bg-primary/5 border border-primary/20 p-2 rounded-xl mb-2 flex justify-between items-center hidden shrink-0">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs"
+                                    id="cart-member-initial"></div>
+                                <div>
+                                    <p class="text-xs font-bold text-primary leading-tight" id="cart-member-name">
+                                        ชื่อลูกค้า</p>
+                                    <p class="text-[9px] text-stone-500" id="cart-member-tier">Silver</p>
+                                </div>
+                            </div>
+                            <button onclick="removeCartMember()"
+                                class="w-6 h-6 flex justify-center items-center text-stone-400 hover:bg-white rounded-full transition-colors"><span
+                                    class="material-symbols-outlined text-[16px]">close</span></button>
+                        </div>
+
+                        <!-- Main Cart & Checkout Area -->
+                        <div
+                            class="flex flex-col bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-inner">
+
+                            <button id="btn-select-cart-member" onclick="openSelectCartMemberModal()"
+                                class="w-full bg-stone-50 border-b border-stone-200 p-2 text-xs font-bold text-stone-500 hover:text-primary transition-colors flex justify-center items-center gap-1 shrink-0"><span
+                                    class="material-symbols-outlined text-[16px]">person_add</span>
+                                ผูกสมาชิกลงบิลเพื่อสะสมยอด</button>
+
+                            <div id="cart-container" class="p-2 space-y-2 content-start bg-white"></div>
+
+                            <!-- Checkout Section -->
+                            <div
+                                class="shrink-0 bg-stone-50 p-3 border-t border-stone-200 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] space-y-2 z-10">
+
+                                <!-- Coupon Alert in Cart -->
+                                <div id="cart-coupon-section"
+                                    class="hidden flex justify-between items-center bg-amber-50 border border-amber-200 p-2 rounded-lg mb-2">
+                                    <span class="text-[10px] font-bold text-amber-700 flex items-center gap-1"><span
+                                            class="material-symbols-outlined text-[14px]">confirmation_number</span>
+                                        มีคูปองที่ใช้ได้ <span id="available-coupon-count">0</span> ใบ</span>
+
+                                    <div class="flex items-center gap-2">
+                                        <select id="cart-coupon-select"
+                                            class="text-[10px] p-1 border border-amber-300 rounded bg-white text-amber-800 outline-none"
+                                            onchange="renderCart()">
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <label
+                                        class="text-[10px] font-bold text-primary tracking-widest uppercase flex items-center gap-1 w-16"><span
+                                            class="material-symbols-outlined text-[14px]">local_offer</span>
+                                        ส่วนลด</label>
+                                    <input id="cart-discount-val" type="number"
+                                        class="flex-1 p-1.5 text-sm border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                        placeholder="ระบุเลข" oninput="renderCart()">
+                                    <select id="cart-discount-type"
+                                        class="w-14 p-1.5 text-sm border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                        onchange="renderCart()">
+                                        <option value="amount">฿</option>
+                                        <option value="percent">%</option>
+                                    </select>
+                                </div>
+
+                                <div id="auto-promo-alert"
+                                    class="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 p-1.5 rounded-lg hidden flex flex-col gap-1">
+                                </div>
+
+                                <div class="text-xs font-medium space-y-1 border-t border-stone-200 border-dashed pt-2">
+                                    <div class="flex justify-between text-stone-500"><span>ยอดรวม:</span><span
+                                            id="cart-subtotal">฿0.00</span></div>
+                                    <div class="flex justify-between text-emerald-600 font-bold hidden"
+                                        id="row-auto-discount"><span>ลดอัตโนมัติ:</span><span
+                                            id="cart-auto-discount">-฿0.00</span></div>
+                                    <div class="flex justify-between text-primary font-bold">
+                                        <span>ส่วนลดเพิ่ม:</span><span id="cart-discount">-฿0.00</span></div>
+                                    <div class="flex justify-between text-[10px] text-stone-400"><span>สินค้า: <span
+                                                id="cart-before-vat">฿0.00</span></span><span>VAT: <span
+                                                id="cart-vat">฿0.00</span></span></div>
+                                    <div class="flex justify-between items-end pt-1"><span
+                                            class="font-bold text-stone-800">ยอดสุทธิ:</span><span id="cart-total"
+                                            class="text-2xl font-black text-primary font-headline leading-none">฿0.00</span>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-stone-200 pt-2">
+                                    <div class="grid grid-cols-2 gap-2 mb-2">
+                                        <button id="btn-pay-cash" onclick="triggerPayment('cash')"
+                                            class="py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-200 shadow-sm hover:bg-emerald-100 flex flex-col items-center active:scale-95 transition-all"><span
+                                                class="material-symbols-outlined text-[18px] mb-0.5">payments</span><span
+                                                class="text-xs">เงินสด</span></button>
+                                        <button id="btn-pay-qr" onclick="triggerPayment('qr')"
+                                            class="py-2 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 shadow-sm hover:bg-blue-100 flex flex-col items-center active:scale-95 transition-all"><span
+                                                class="material-symbols-outlined text-[18px] mb-0.5">qr_code_scanner</span><span
+                                                class="text-xs">QR Code</span></button>
+                                    </div>
+                                    <button id="btn-pay-ewallet" onclick="triggerPayment('ewallet')"
+                                        class="w-full py-2.5 bg-stone-800 text-white font-bold rounded-xl flex justify-center items-center gap-2 hover:bg-black active:scale-95 shadow-md transition-all opacity-50 pointer-events-none"><span
+                                            class="material-symbols-outlined text-amber-400 text-[16px]">wallet</span>
+                                        ชำระด้วย E-Wallet (เฉพาะสมาชิก)</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: CASH & EXPENSE -->
+                <div id="content-cash" class="max-w-5xl mx-auto hidden animate-fade-in pb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold font-headline">จัดการรายรับ-รายจ่าย (Cash Management)</h2>
+                        <div class="flex gap-2">
+                            <button onclick="openExpenseModal('expense')"
+                                class="px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-bold rounded-full hover:bg-red-100 active:scale-95 flex items-center gap-1"><span
+                                    class="material-symbols-outlined text-[18px]">remove</span> บันทึกรายจ่าย</button>
+                            <button onclick="openExpenseModal('income')"
+                                class="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-bold rounded-full hover:bg-emerald-100 active:scale-95 flex items-center gap-1"><span
+                                    class="material-symbols-outlined text-[18px]">add</span> บันทึกรายรับ</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                            <p class="text-[10px] text-stone-500 font-bold tracking-widest uppercase">
+                                ดึงเงินออกลิ้นชักกะปัจจุบัน (Cash Out)</p>
+                            <h3 class="text-2xl font-black text-red-500 mt-1" id="dash-cash-out">฿0.00</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                            <p class="text-[10px] text-stone-500 font-bold tracking-widest uppercase">
+                                นำเงินเข้าลิ้นชักกะปัจจุบัน (Cash In)</p>
+                            <h3 class="text-2xl font-black text-emerald-600 mt-1" id="dash-cash-in">฿0.00</h3>
+                        </div>
+                        <div class="bg-stone-800 text-white p-5 rounded-2xl shadow-sm">
+                            <p class="text-[10px] font-bold tracking-widest uppercase opacity-70">
+                                เงินสดที่ต้องมีในลิ้นชัก (Expected Cash)</p>
+                            <h3 class="text-2xl font-black mt-1 text-primary-container" id="dash-expected-cash">
+                                ยังไม่เปิดกะ</h3>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr
+                                    class="bg-stone-50 border-b border-stone-100 text-[10px] font-bold text-stone-500 uppercase tracking-widest">
+                                    <th class="p-4">เวลา</th>
+                                    <th class="p-4">รายการ / เหตุผล</th>
+                                    <th class="p-4">ช่องทาง</th>
+                                    <th class="p-4 text-right">จำนวนเงิน (฿)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="drawer-logs-table" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB: MENU -->
+                <div id="content-menu" class="max-w-7xl mx-auto hidden animate-fade-in pb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold font-headline">ระบบจัดการเมนู (Menu Management)</h2>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div
+                            class="lg:col-span-1 bg-white p-5 rounded-[2rem] border border-stone-200 shadow-sm flex flex-col">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold text-stone-800">หมวดหมู่ (Categories)</h3><button
+                                    onclick="openCatModal()"
+                                    class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 px-3 py-1.5 rounded-lg font-bold transition-colors"><span
+                                        class="material-symbols-outlined text-[14px] align-middle">add</span>
+                                    เพิ่ม</button>
+                            </div>
+                            <div class="flex-1 overflow-y-auto">
+                                <ul id="admin-cat-list" class="space-y-2"></ul>
+                            </div>
+                        </div>
+                        <div
+                            class="lg:col-span-2 bg-white p-5 rounded-[2rem] border border-stone-200 shadow-sm flex flex-col">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold text-stone-800">รายการเมนู (Items)</h3><button
+                                    onclick="openItemModal()"
+                                    class="text-xs bg-primary text-white hover:bg-primary-container px-3 py-1.5 rounded-lg font-bold transition-colors shadow-sm"><span
+                                        class="material-symbols-outlined text-[14px] align-middle">add</span>
+                                    เพิ่มเมนู</button>
+                            </div>
+                            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-3 border-b border-stone-100 mb-4"
+                                id="admin-item-filter"></div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr
+                                            class="bg-stone-50 border-b border-stone-100 text-[10px] font-bold text-stone-500 uppercase tracking-widest">
+                                            <th class="p-3 rounded-tl-lg">ชื่อเมนู</th>
+                                            <th class="p-3">ราคา (฿)</th>
+                                            <th class="p-3">รูปแบบ (Rule)</th>
+                                            <th class="p-3 text-center rounded-tr-lg">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-item-list" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: MARKETING (CRM & PROMOTIONS) -->
+                <div id="content-marketing" class="max-w-7xl mx-auto hidden animate-fade-in pb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold font-headline">ระบบการตลาดและลูกค้าสัมพันธ์ (CRM)</h2>
+                        <button onclick="saveMarketingSettings()"
+                            class="px-5 py-2 bg-stone-800 hover:bg-black text-white text-sm font-bold rounded-full active:scale-95 shadow-md flex items-center gap-2"><span
+                                class="material-symbols-outlined text-[18px]">save</span> บันทึกการตั้งค่า</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                        <div class="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm">
+                            <div class="flex items-center gap-2 mb-4 text-primary">
+                                <span class="material-symbols-outlined">workspace_premium</span>
+                                <h3 class="font-bold font-headline text-lg text-stone-800">ตั้งค่าระดับสมาชิก (Tiers)
+                                </h3>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-4">กำหนดเงื่อนไขยอดใช้จ่ายสะสมเพื่อเลื่อนระดับ
+                                และส่วนลดอัตโนมัติที่ลูกค้าจะได้รับ</p>
+
+                            <div class="space-y-4" id="marketing-tier-list">
+                                <!-- Rendered by JS -->
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div class="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm">
+                                <div class="flex justify-between items-center mb-4">
+                                    <div class="flex items-center gap-2 text-emerald-600">
+                                        <span class="material-symbols-outlined">celebration</span>
+                                        <h3 class="font-bold font-headline text-lg text-stone-800">ระบบโปรโมชัน
+                                            (Promotions)</h3>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-stone-500 mb-4">
+                                    ตั้งค่าการลดราคาแบบมีเงื่อนไขอัตโนมัติในตะกร้าสินค้า ปิดสวิตช์หากไม่ต้องการใช้งาน
+                                </p>
+
+                                <div id="marketing-promo-list" class="space-y-3">
+                                    <!-- Rendered by JS -->
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm">
+                                <div class="flex justify-between items-center mb-4">
+                                    <div class="flex items-center gap-2 text-amber-600">
+                                        <span class="material-symbols-outlined">confirmation_number</span>
+                                        <h3 class="font-bold font-headline text-lg text-stone-800">รูปแบบคูปอง (Coupon
+                                            Templates)</h3>
+                                    </div>
+                                    <button onclick="openCouponTemplateModal()"
+                                        class="text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"><span
+                                            class="material-symbols-outlined text-[12px]">add</span> สร้างคูปอง</button>
+                                </div>
+                                <p class="text-xs text-stone-500 mb-4">สร้างรูปแบบคูปองเพื่อนำไปแจกให้ลูกค้าในหน้า
+                                    "จัดการสมาชิก"</p>
+
+                                <div id="marketing-coupon-list" class="space-y-3">
+                                    <!-- Rendered by JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- TAB: HISTORY -->
+                <div id="content-history" class="max-w-5xl mx-auto hidden animate-fade-in">
+                    <h2 class="text-2xl font-bold font-headline mb-4">ประวัติรายการ (Transactions)</h2>
+                    <div class="bg-white rounded-3xl border border-stone-200 shadow-sm p-4">
+                        <div id="admin-history-list" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- TAB: MEMBERS -->
+                <div id="content-members" class="max-w-5xl mx-auto hidden animate-fade-in">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold font-headline">จัดการสมาชิก</h2>
+                        <button onclick="openAddMemberModal()"
+                            class="px-4 py-2 bg-primary text-white text-sm font-bold rounded-full active:scale-95">เพิ่มสมาชิก</button>
+                    </div>
+                    <div
+                        class="bg-gradient-to-r from-primary to-primary-dark text-white p-6 rounded-3xl mb-4 flex justify-between items-center shadow-md">
+                        <div>
+                            <p class="text-xs opacity-70 font-bold tracking-widest uppercase">System Liabilities</p>
+                            <h3 class="text-4xl font-black mt-1" id="sys-total-ewallet">฿0.00</h3>
+                        </div>
+                        <span class="material-symbols-outlined text-6xl opacity-20">account_balance_wallet</span>
+                    </div>
+                    <section class="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex gap-4 mb-4">
+                        <div class="flex-1 relative">
+                            <span
+                                class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">search</span>
+                            <input id="search-member" type="text" oninput="renderMembers()"
+                                placeholder="ค้นหารายชื่อ หรือ เบอร์โทรศัพท์..."
+                                class="w-full pl-12 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-xl outline-none text-sm">
+                        </div>
+                    </section>
+                    <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr
+                                    class="bg-stone-50 border-b border-stone-100 text-[10px] font-label font-bold text-stone-500 uppercase tracking-widest">
+                                    <th class="p-5 font-bold">ข้อมูลสมาชิก (คลิกเพื่อดูประวัติ)</th>
+                                    <th class="p-5 font-bold text-center">ระดับชั้น (Tier)</th>
+                                    <th class="p-5 font-bold text-right">ยอดใช้จ่ายสะสม (Total Spent)</th>
+                                    <th class="p-5 font-bold text-right">E-Wallet (฿)</th>
+                                    <th class="p-5 font-bold text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-members" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB: EMPLOYEES -->
+                <div id="content-employees" class="max-w-5xl mx-auto hidden animate-fade-in">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold font-headline">จัดการพนักงาน</h2>
+                        <div class="flex gap-2">
+                            <button onclick="renderTimeClockLogs()"
+                                class="px-4 py-2 bg-white border border-stone-200 text-stone-600 text-sm font-bold rounded-full active:scale-95 flex items-center gap-2"><span
+                                    class="material-symbols-outlined text-[18px]">schedule</span>
+                                ประวัติตอกบัตร</button>
+                            <button onclick="openAddEmployeeModal()"
+                                class="px-4 py-2 bg-stone-800 text-white text-sm font-bold rounded-full active:scale-95">เพิ่มพนักงาน</button>
+                        </div>
+                    </div>
+                    <section class="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex gap-4 mb-4">
+                        <div class="flex-1 relative">
+                            <span
+                                class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">search</span>
+                            <input id="employee-list-search" oninput="renderEmployees()"
+                                class="w-full pl-12 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-xl outline-none text-sm"
+                                placeholder="ค้นหาชื่อพนักงาน...">
+                        </div>
+                    </section>
+                    <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr
+                                    class="bg-stone-50 border-b border-stone-100 text-[10px] font-label font-bold text-stone-500 uppercase tracking-widest">
+                                    <th class="p-5 font-bold">ชื่อพนักงาน</th>
+                                    <th class="p-5 font-bold">ตำแหน่ง (Role)</th>
+                                    <th class="p-5 font-bold">สถานะตอกบัตร</th>
+                                    <th class="p-5 font-bold text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-employees" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB: DASHBOARD -->
+                <div id="content-dashboard" class="max-w-6xl mx-auto hidden animate-fade-in">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 class="text-2xl font-bold font-headline text-on-surface tracking-tight">ภาพรวมและสถิติ
+                                (Dashboard)</h2>
+                            <p class="text-stone-500 font-medium text-sm mt-1">ข้อมูลยอดขายและพฤติกรรมลูกค้า <span
+                                    class="text-emerald-600 font-bold">(Real-time)</span></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                        <div
+                            class="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100 flex flex-col justify-between">
+                            <div
+                                class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-6">
+                                <span class="material-symbols-outlined">payments</span></div>
+                            <div>
+                                <p class="text-[10px] font-label font-bold text-stone-400 tracking-widest uppercase">
+                                    ยอดขายรวม (Sales Revenue)</p>
+                                <h3 class="text-3xl font-black font-headline mt-1" id="dash-revenue">฿0</h3>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100 flex flex-col justify-between">
+                            <div
+                                class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-6">
+                                <span class="material-symbols-outlined">receipt_long</span></div>
+                            <div>
+                                <p class="text-[10px] font-label font-bold text-stone-400 tracking-widest uppercase">
+                                    จำนวนออเดอร์ (Total Orders)</p>
+                                <h3 class="text-3xl font-black font-headline mt-1"><span id="dash-orders">0</span> <span
+                                        class="text-sm font-bold text-stone-400">บิล</span></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ================= CUSTOMER VIEW ================= -->
+    <div id="customer-view" class="hidden flex-1 h-screen w-full bg-stone-900 flex items-center justify-center p-4">
+        <div class="absolute inset-0 opacity-20 pointer-events-none"
+            style="background-image: radial-gradient(circle at 50% 50%, #861b00 0%, transparent 50%);"></div>
+        <div
+            class="mobile-mockup bg-background rounded-[3rem] border-[10px] border-stone-800 relative flex flex-col overflow-hidden shadow-2xl">
+
+            <header class="bg-white px-6 py-5 flex justify-between items-center border-b border-stone-100 pt-10 z-10">
+                <span class="font-black text-primary font-headline tracking-tight text-lg">SRIBROWN MEMBERSHIP</span>
+                <div
+                    class="relative w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center overflow-hidden border border-stone-300 cursor-pointer group">
+                    <img id="cust-pic" src="" class="w-full h-full object-cover hidden">
+                    <span id="cust-pic-icon" class="material-symbols-outlined text-stone-400">person</span>
+                    <input type="file" accept="image/*" onchange="uploadPic(event)"
+                        class="absolute inset-0 opacity-0 cursor-pointer">
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto no-scrollbar px-5 pt-6 pb-24 relative z-0">
+                <!-- Tab Home -->
+                <div id="c-tab-home" class="block animate-fade-in">
+                    <h1 class="text-2xl font-black mb-4 text-stone-800 font-headline">สวัสดี, <span
+                            id="c-name">ลูกค้า</span></h1>
+
+                    <div class="grid grid-cols-2 gap-3 mb-6">
+                        <div
+                            class="bg-gradient-to-br from-primary to-primary-dark text-white p-4 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col justify-center">
+                            <span class="text-[10px] tracking-widest opacity-80 uppercase font-bold">E-Wallet
+                                Balance</span>
+                            <div class="mt-1"><span class="text-sm">฿</span> <span id="c-balance"
+                                    class="text-2xl font-black">0.00</span></div>
+                            <span
+                                class="material-symbols-outlined absolute -right-2 -bottom-2 text-6xl opacity-10">wallet</span>
+                        </div>
+                        <div
+                            class="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-4 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col justify-center">
+                            <span class="text-[10px] tracking-widest opacity-80 uppercase font-bold">My Coupons</span>
+                            <div class="mt-1"><span id="c-coupons" class="text-2xl font-black">0</span> <span
+                                    class="text-sm font-bold opacity-80">ใบ</span></div>
+                            <span
+                                class="material-symbols-outlined absolute -right-2 -bottom-2 text-6xl opacity-10">confirmation_number</span>
+                        </div>
+                    </div>
+
+                    <!-- CFD -->
+                    <div id="c-cfd" class="bg-white p-5 rounded-2xl shadow-sm border border-stone-200 mb-6 hidden">
+                        <p class="text-xs font-bold text-primary mb-2 flex items-center gap-1"><span
+                                class="material-symbols-outlined text-[16px] animate-pulse">shopping_cart</span>
+                            กำลังสั่งซื้อ</p>
+                        <div id="c-cfd-items"
+                            class="text-sm text-stone-600 space-y-1 mb-3 pb-3 border-b border-stone-100 border-dashed">
+                        </div>
+                        <div class="flex justify-between items-end"><span
+                                class="font-bold text-stone-800 text-sm">ยอดสุทธิ:</span><span id="c-cfd-total"
+                                class="text-xl font-black text-primary">฿0.00</span></div>
+                    </div>
+                </div>
+                <!-- Tab History -->
+                <div id="c-tab-history" class="hidden animate-fade-in">
+                    <h2 class="text-xl font-black mb-4 text-stone-800 font-headline">ประวัติรายการ</h2>
+                    <div id="c-history-list" class="space-y-3"></div>
+                </div>
+                <!-- Tab Profile -->
+                <div id="c-tab-profile" class="hidden animate-fade-in">
+                    <h2 class="text-xl font-black mb-4 text-stone-800 font-headline">ข้อมูลส่วนตัว</h2>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-stone-200 space-y-4 text-sm">
+                        <div class="flex justify-between border-b pb-2"><span
+                                class="text-stone-500">เบอร์โทร</span><span id="c-phone" class="font-bold"></span></div>
+                        <div class="flex justify-between border-b pb-2"><span class="text-stone-500">ระดับ</span><span
+                                id="c-tier" class="font-bold text-amber-600"></span></div>
+                        <div class="flex justify-between border-b pb-2"><span
+                                class="text-stone-500">ยอดใช้จ่ายสะสม</span><span id="c-total-spent"
+                                class="font-bold"></span></div>
+                        <div class="flex justify-between"><span class="text-stone-500">วันเกิด</span><span id="c-dob"
+                                class="font-bold"></span></div>
+                    </div>
+                </div>
+            </main>
+
+            <nav
+                class="absolute bottom-0 w-full bg-white border-t border-stone-200 flex justify-around p-2 pb-6 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+                <button onclick="navCust('home')" id="btn-cust-home"
+                    class="c-nav text-primary p-2 flex flex-col items-center"><span
+                        class="material-symbols-outlined transition-transform active:scale-90"
+                        style="font-variation-settings: 'FILL' 1;">home</span></button>
+                <button onclick="navCust('history')" id="btn-cust-history"
+                    class="c-nav text-stone-400 p-2 flex flex-col items-center"><span
+                        class="material-symbols-outlined transition-transform active:scale-90">receipt_long</span></button>
+                <button onclick="navCust('profile')" id="btn-cust-profile"
+                    class="c-nav text-stone-400 p-2 flex flex-col items-center"><span
+                        class="material-symbols-outlined transition-transform active:scale-90">person</span></button>
+            </nav>
+        </div>
+    </div>
+
+    <script type="module" src="./js/app.js"></script>
+</body>
+
+</html>
