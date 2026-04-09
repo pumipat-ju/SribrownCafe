@@ -1,5 +1,6 @@
 import { findEmployeeByPin, getPermissionResult } from './services/permissionService.js';
 import { calculateCartSummary } from './services/pricingService.js';
+import { buildSubOptionTypes } from './services/menuService.js';
 import {
     renderCartItems,
     renderCartCouponSection,
@@ -742,32 +743,30 @@ let currentView = 'admin';
 
         function handleMenuClick(id) {
             const item = state.menu.items.find(i => i.id === id);
+            if (!item) return;
+
             if (item.rule === 'none') {
                 addToCart(item, '', 1);
-            } else {
-                currentEditingItem = item;
-                const types = item.rule === 'espresso' ? [{ id: 'hot', n: 'ร้อน', p: -20 }, { id: 'ice', n: 'เย็น', p: 0 }, { id: 'frappe', n: 'ปั่น', p: 20 }] :
-                    item.rule === 'americano' ? [{ id: 'hot', n: 'ร้อน', p: 0 }, { id: 'ice', n: 'เย็น', p: 0 }] :
-                        item.rule === 'iced_only' ? [{ id: 'ice', n: 'เย็น', p: 0 }] :
-                            [{ id: 'hot', n: 'ร้อน', p: 0 }, { id: 'ice', n: 'เย็น', p: 0 }, { id: 'frappe', n: 'ปั่น', p: 20 }];
-                selectedOpts.type = types.find(t => t.id === 'ice') || types[0];
-                selectedOpts.roast = 'คั่วกลาง';
-                selectedOpts.sweet = 'หวานปกติ';
-                modalQty = 1;
-
-                document.getElementById('sub-opt-title').innerText = item.name;
-                document.getElementById('sub-opt-base-price').innerText = `ราคาพื้นฐาน ฿${item.price}`;
-                document.getElementById('sub-opt-note').value = '';
-                document.getElementById('modal-qty').innerText = modalQty;
-                document.getElementById('section-roast').style.display = item.cat === 'coffee' ? 'block' : 'none';
-
-                document.getElementById('sub-opt-types').innerHTML = types.map(t => `
-                    <button onclick="selectedOpts.type={id:'${t.id}',n:'${t.n}',p:${t.p}}; renderSubOptions();" class="py-2 px-1 rounded-xl border-2 text-xs font-bold ${selectedOpts.type.id === t.id ? 'border-primary bg-primary/10 text-primary' : 'border-stone-200 text-stone-500'}">${t.n} ${t.p !== 0 ? t.p + '฿' : ''}</button>
-                `).join('');
-
-                renderSubOptions();
-                openModal('sub-option-modal');
+                return;
             }
+
+            currentEditingItem = item;
+
+            const types = buildSubOptionTypes(item);
+
+            selectedOpts.type = types.find(t => t.id === 'ice') || types[0] || null;
+            selectedOpts.roast = 'คั่วกลาง';
+            selectedOpts.sweet = 'หวานปกติ';
+            modalQty = 1;
+
+            document.getElementById('sub-opt-title').innerText = item.name;
+            document.getElementById('sub-opt-base-price').innerText = `ราคาพื้นฐาน ฿${item.price}`;
+            document.getElementById('sub-opt-note').value = '';
+            document.getElementById('modal-qty').innerText = modalQty;
+            document.getElementById('section-roast').style.display = item.cat === 'coffee' ? 'block' : 'none';
+
+            renderSubOptions();
+            openModal('sub-option-modal');
         }
 
         function changeModalQty(diff) {
@@ -778,27 +777,93 @@ let currentView = 'admin';
         }
 
         function renderSubOptions() {
-            document.getElementById('sub-opt-types').innerHTML = document.getElementById('sub-opt-types').innerHTML.replace(/border-primary bg-primary\/10 text-primary/g, 'border-stone-200 text-stone-500');
-            const typesBtns = document.getElementById('sub-opt-types').children;
-            for (let b of typesBtns) {
-                if (b.innerText.includes(selectedOpts.type.n)) {
-                    b.className = "py-2 px-1 rounded-xl border-2 text-xs font-bold border-primary bg-primary/10 text-primary";
-                } else {
-                    b.className = "py-2 px-1 rounded-xl border-2 text-xs font-bold border-stone-200 text-stone-500";
-                }
+            if (!currentEditingItem) return;
+
+            const types = buildSubOptionTypes(currentEditingItem);
+
+            const typeWrap = document.getElementById('sub-opt-types');
+            const roastWrap = document.getElementById('sub-opt-roast');
+            const sweetWrap = document.getElementById('sub-opt-sweet');
+
+            typeWrap.innerHTML = types.map(t => `
+                <button
+                    type="button"
+                    class="sub-opt-type-btn py-2 px-1 rounded-xl border-2 text-xs font-bold ${
+                        selectedOpts.type && selectedOpts.type.id === t.id
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-stone-200 text-stone-500'
+                    }"
+                    data-id="${t.id}"
+                >
+                    ${t.n} ${t.p !== 0 ? (t.p > 0 ? `+${t.p}฿` : `${t.p}฿`) : ''}
+                </button>
+            `).join('');
+
+            typeWrap.querySelectorAll('.sub-opt-type-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const picked = types.find(t => t.id === btn.dataset.id);
+                    if (!picked) return;
+                    selectedOpts.type = picked;
+                    renderSubOptions();
+                });
+            });
+
+            if (roastWrap) {
+                const roastOptions = ['คั่วเข้ม', 'คั่วกลาง', 'คั่วอ่อน'];
+
+                roastWrap.innerHTML = roastOptions.map(r => `
+                    <button
+                        type="button"
+                        class="sub-opt-roast-btn py-2 px-1 rounded-xl border-2 text-xs font-bold ${
+                            selectedOpts.roast === r
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-stone-200 text-stone-500'
+                        }"
+                        data-value="${r}"
+                    >
+                        ${r}
+                    </button>
+                `).join('');
+
+                roastWrap.querySelectorAll('.sub-opt-roast-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        selectedOpts.roast = btn.dataset.value;
+                        renderSubOptions();
+                    });
+                });
             }
 
-            document.getElementById('sub-opt-roast').innerHTML = ['คั่วเข้ม', 'คั่วกลาง', 'คั่วอ่อน'].map(r => `
-                <button onclick="selectedOpts.roast='${r}'; renderSubOptions();" class="py-2 rounded-xl border-2 text-xs font-bold ${selectedOpts.roast === r ? 'border-primary bg-primary/10 text-primary' : 'border-stone-200 text-stone-500'}">${r}</button>
-            `).join('');
+            if (sweetWrap) {
+                const sweetOptions = ['หวานปกติ', 'หวานน้อย', 'ไม่หวาน'];
 
-            document.getElementById('sub-opt-sweetness').innerHTML = ['หวานปกติ', 'หวานน้อย', 'ไม่หวาน'].map(s => `
-                <button onclick="selectedOpts.sweet='${s}'; renderSubOptions();" class="py-2 rounded-xl border-2 text-xs font-bold ${selectedOpts.sweet === s ? 'border-primary bg-primary/10 text-primary' : 'border-stone-200 text-stone-500'}">${s}</button>
-            `).join('');
+                sweetWrap.innerHTML = sweetOptions.map(s => `
+                    <button
+                        type="button"
+                        class="sub-opt-sweet-btn py-2 px-1 rounded-xl border-2 text-xs font-bold ${
+                            selectedOpts.sweet === s
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-stone-200 text-stone-500'
+                        }"
+                        data-value="${s}"
+                    >
+                        ${s}
+                    </button>
+                `).join('');
 
-            const unitPrice = currentEditingItem.price + selectedOpts.type.p;
-            const total = unitPrice * modalQty;
-            document.getElementById('sub-opt-total-price').innerText = `฿${total}`;
+                sweetWrap.querySelectorAll('.sub-opt-sweet-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        selectedOpts.sweet = btn.dataset.value;
+                        renderSubOptions();
+                    });
+                });
+            }
+
+            const totalEl = document.getElementById('sub-opt-total');
+            if (totalEl) {
+                const extra = selectedOpts.type ? selectedOpts.type.p : 0;
+                const total = (currentEditingItem.price + extra) * modalQty;
+                totalEl.innerText = `฿${total}`;
+            }
         }
 
         function confirmSubOptions() {
