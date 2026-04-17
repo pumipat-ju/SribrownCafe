@@ -65,13 +65,13 @@ export default function AdminPage() {
 
     // 📋 เมนูทั้งหมด (ปรับชื่อให้กระชับ ทันสมัย)
     const navItems = [
-        { id: 'dashboard', icon: 'dashboard', label: 'แดชบอร์ด' },
-        { id: 'pos-menu', icon: 'point_of_sale', label: 'POS & เมนู' },
-        { id: 'crm', icon: 'campaign', label: 'CRM & สมาชิก' },
-        { id: 'employees', icon: 'badge', label: 'พนักงาน' },
-        { id: 'inventory', icon: 'inventory_2', label: 'คลังสินค้า' },
-        { id: 'cash', icon: 'payments', label: 'ลิ้นชักเงิน' },
-        { id: 'history', icon: 'receipt_long', label: 'ประวัติรายการ' },
+        { id: 'dashboard', icon: 'dashboard', label: 'Dashboard' },
+        { id: 'pos-menu', icon: 'point_of_sale', label: 'Menu' },
+        { id: 'crm', icon: 'campaign', label: 'Membership' },
+        { id: 'employees', icon: 'badge', label: 'Employees' },
+        { id: 'inventory', icon: 'inventory_2', label: 'Inventory' },
+        { id: 'cash', icon: 'payments', label: 'Cash Drawer' },
+        { id: 'history', icon: 'receipt_long', label: 'Transaction History' },
     ];
 
     // ฟังก์ชันสลับหน้าและปิดเมนูมือถืออัตโนมัติ
