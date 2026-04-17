@@ -3,15 +3,16 @@ import { AppContext } from '../context/AppContext';
 import { useNavigate } from 'react-router-dom';
 
 // นำเข้าแท็บต่างๆ (อย่าลืมสร้างไฟล์ให้ครบตามนี้นะครับ)
-import PosTab from '../components/PosTab';
+
 import HistoryTab from '../components/HistoryTab';
-import MenuTab from '../components/MenuTab';
+import CRMTab from '../components/CRMTab';
 import MembersTab from '../components/MembersTab';
 import EmployeesTab from '../components/EmployeesTab';
 import CashTab from '../components/CashTab';
 import MarketingTab from '../components/MarketingTab';
 import InventoryTab from '../components/InventoryTab';
 import DashboardTab from '../components/DashboardTab';
+import PosMenuTab from '../components/PosMenuTab';
 
 export default function AdminPage() {
     const { currentEmployee, shift, setShift } = useContext(AppContext);
@@ -65,10 +66,8 @@ export default function AdminPage() {
     // 📋 เมนูทั้งหมด (ปรับชื่อให้กระชับ ทันสมัย)
     const navItems = [
         { id: 'dashboard', icon: 'dashboard', label: 'แดชบอร์ด' },
-        { id: 'pos', icon: 'point_of_sale', label: 'จุดขาย (POS)' },
-        { id: 'menu', icon: 'restaurant_menu', label: 'จัดการเมนู' },
-        { id: 'marketing', icon: 'campaign', label: 'การตลาด (CRM)' },
-        { id: 'members', icon: 'group', label: 'ระบบสมาชิก' },
+        { id: 'pos-menu', icon: 'point_of_sale', label: 'POS & เมนู' },
+        { id: 'crm', icon: 'campaign', label: 'CRM & สมาชิก' },
         { id: 'employees', icon: 'badge', label: 'พนักงาน' },
         { id: 'inventory', icon: 'inventory_2', label: 'คลังสินค้า' },
         { id: 'cash', icon: 'payments', label: 'ลิ้นชักเงิน' },
@@ -178,15 +177,13 @@ export default function AdminPage() {
 
                 {/* 🌟 Content (เนื้อหาที่เปลี่ยนไปตามเมนูที่กด) */}
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#fafaf5] relative no-scrollbar">
-                    {activeTab === 'pos' && <PosTab />}
+                    {activeTab === 'dashboard' && <DashboardTab />}
+                    {activeTab === 'pos-menu' && <PosMenuTab />}
                     {activeTab === 'history' && <HistoryTab />}
-                    {activeTab === 'menu' && <MenuTab />}
-                    {activeTab === 'members' && <MembersTab />}
+                    {activeTab === 'crm' && <CRMTab />}
                     {activeTab === 'employees' && <EmployeesTab />}
                     {activeTab === 'cash' && <CashTab />}
-                    {activeTab === 'marketing' && <MarketingTab />}
                     {activeTab === 'inventory' && <InventoryTab />}
-                    {activeTab === 'dashboard' && <DashboardTab />}
 
                     {/* แสดงข้อความเตือนถ้าคอมโพเนนต์ไหนยังไม่ได้สร้าง */}
                     {activeTab === 'inventory' && !InventoryTab && (
