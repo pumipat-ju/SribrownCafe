@@ -6,10 +6,10 @@ services:
     container_name: sribrown_mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: sribrowncafe
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
     ports:
-      - "3307:3306"
+      - "${DB_PORT}:3306"
     volumes:
       - db_data:/var/lib/mysql
 
@@ -23,7 +23,7 @@ services:
       - "8000:8000"
     environment:
       # Use the Docker service name "db" as the host for MySQL connection
-      - DATABASE_URL=mysql+pymysql://root:rootpassword@db:3306/sribrowncafe
+      - DATABASE_URL=${DATABASE_URL}
     depends_on:
       - db
 
@@ -35,7 +35,7 @@ services:
       PMA_HOST: db
       PMA_PORT: 3306
     ports:
-      - "8080:80"
+      - "${PMA_PORT}:80"
     depends_on:
       - db
 
