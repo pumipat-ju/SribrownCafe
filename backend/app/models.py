@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Date
 from datetime import datetime
 from .database import Base
 
@@ -15,11 +15,14 @@ class Employee(Base):
 class Member(Base):
     __tablename__ = "members"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    phone = Column(String(255), nullable=True)
-    points = Column(Integer, default=0)
+    id     = Column(Integer, primary_key=True, index=True)
+    name   = Column(String(255), nullable=False)   # "nickname (fullname)"
+    phone  = Column(String(20), unique=True, nullable=False)
+    pin    = Column(String(10), nullable=False)
+    points = Column(Float, default=0.0)
     wallet = Column(Float, default=0.0)
+    age    = Column(Integer, nullable=True)
+    dob    = Column(Date, nullable=True)
 
 
 class MenuItem(Base):

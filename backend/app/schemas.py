@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 
 class EmployeeBase(BaseModel):
@@ -24,13 +24,26 @@ class EmployeeOut(BaseModel):
 
 class MemberBase(BaseModel):
     name: str
-    phone: Optional[str] = None
-    points: Optional[int] = 0
+    phone: str
+    pin: str
+    points: Optional[float] = 0.0
     wallet: Optional[float] = 0.0
+    age: Optional[int] = None
+    dob: Optional[date] = None
 
 
 class MemberCreate(MemberBase):
     pass
+
+
+class MemberUpdate(BaseModel):
+    name: str
+    phone: str
+    pin: str
+    points: Optional[float] = None
+    wallet: Optional[float] = None
+    age: Optional[int] = None
+    dob: Optional[date] = None
 
 
 class MemberOut(MemberBase):

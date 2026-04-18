@@ -60,7 +60,9 @@ export default function MembersTab() {
                     phone: newMember.phone,
                     pin: newMember.pin,
                     points: 0,
-                    wallet: 0
+                    wallet: 0,
+                    age: newMember.age ? parseInt(newMember.age) : null,
+                    dob: newMember.dob || null
                 })
             });
             setMembers([created, ...members]);
@@ -82,8 +84,11 @@ export default function MembersTab() {
                 body: JSON.stringify({
                     name: topupMember.name,
                     phone: topupMember.phone,
+                    pin: topupMember.pin,
                     points: topupMember.points,
-                    wallet: (topupMember.wallet || 0) + amount
+                    wallet: (topupMember.wallet || 0) + amount,
+                    age: topupMember.age || null,
+                    dob: topupMember.dob || null
                 })
             });
             setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: updated.wallet } : m));
@@ -110,7 +115,9 @@ export default function MembersTab() {
                     phone: editForm.phone,
                     pin: editForm.pin,
                     points: editMember.points,
-                    wallet: editMember.wallet
+                    wallet: editMember.wallet,
+                    age: editForm.age ? parseInt(editForm.age) : null,
+                    dob: editForm.dob || null
                 })
             });
             setMembers(members.map(m => m.id === editMember.id ? { ...m, ...updated, nickname: editForm.nickname, name: editForm.name, pin: editForm.pin } : m));

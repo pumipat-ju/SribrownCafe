@@ -46,8 +46,8 @@ def seed_data():
         # Members
         # -------------------
         members_data = [
-            models.Member(name="John", phone="0800000000", wallet=200),
-            models.Member(name="Jane", phone="0811111111", wallet=150),
+            models.Member(name="John", phone="0800000000", pin="000000", wallet=200, age=30, dob="1994-01-01"),
+            models.Member(name="Jane", phone="0811111111", pin="000000", wallet=150, age=25, dob="1998-05-15"),
         ]
 
         db.add_all(members_data)
