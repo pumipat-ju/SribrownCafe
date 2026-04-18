@@ -1,5 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api.js';
 
 export default function MenuTab() {
     const { categories, setCategories, menuItems, setMenuItems } = useContext(AppContext);
@@ -21,7 +22,16 @@ export default function MenuTab() {
     const [draggedIdx, setDraggedIdx] = useState(null);
 
     // ================= ฟังก์ชันจัดการข้อมูล =================
-    const handleDeleteItem = (id) => { if (window.confirm('ต้องการลบเมนูนี้?')) setMenuItems(menuItems.filter(i => i.id !== id)); };
+    const handleDeleteItem = async (id) => { 
+        if (window.confirm('ต้องการลบเมนูนี้?')) {
+            try {
+                await fetchJSON(`/menu/${id}`, { method: 'DELETE' });
+                setMenuItems(menuItems.filter(i => i.id !== id)); 
+            } catch (e) {
+                alert('Failed to delete menu: ' + e.message);
+            }
+        }
+    };
     const handleDeleteCat = (id) => { if (window.confirm('ต้องการลบหมวดหมู่นี้?')) setCategories(categories.filter(c => c.id !== id)); };
 
     const saveCategory = () => {
@@ -34,15 +44,37 @@ export default function MenuTab() {
         setNewCatName(''); setEditingCat(null); setIsCatModalOpen(false);
     };
 
-    const saveMenuItem = () => {
+    const saveMenuItem = async () => {
         if (!newItem.name || !newItem.price) return;
         const finalCat = newItem.cat || categories[0]?.id;
-        if (editingItem) {
-            setMenuItems(menuItems.map(it => it.id === editingItem.id ? { ...it, ...newItem, price: parseFloat(newItem.price), cat: finalCat } : it));
-        } else {
-            setMenuItems([...menuItems, { id: Date.now(), ...newItem, price: parseFloat(newItem.price), cat: finalCat }]);
+        try {
+            if (editingItem) {
+                await fetchJSON(`/menu/${editingItem.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        name: newItem.name,
+                        price: parseFloat(newItem.price),
+                        category: finalCat,
+                        image: newItem.color
+                    })
+                });
+                setMenuItems(menuItems.map(it => it.id === editingItem.id ? { ...it, ...newItem, price: parseFloat(newItem.price), cat: finalCat } : it));
+            } else {
+                const created = await fetchJSON(`/menu/`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: newItem.name,
+                        price: parseFloat(newItem.price),
+                        category: finalCat,
+                        image: newItem.color
+                    })
+                });
+                setMenuItems([...menuItems, { id: created.id, ...newItem, price: parseFloat(newItem.price), cat: finalCat }]);
+            }
+            setNewItem({ name: '', price: '', cat: '', color: 'bg-white' }); setEditingItem(null); setIsItemModalOpen(false);
+        } catch (e) {
+            alert('Failed to save menu: ' + e.message);
         }
-        setNewItem({ name: '', price: '', cat: '', color: 'bg-white' }); setEditingItem(null); setIsItemModalOpen(false);
     };
 
     // ================= ระบบลากวาง (Drag & Drop) =================

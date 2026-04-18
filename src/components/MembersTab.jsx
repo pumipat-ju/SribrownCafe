@@ -1,5 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api.js';
 
 export default function MembersTab() {
     const { members, setMembers } = useContext(AppContext);
@@ -45,41 +46,88 @@ export default function MembersTab() {
     // ================= ACTION FUNCTIONS ================= //
 
     // 🌟 2. อัปเดตฟังก์ชันเพิ่มสมาชิก (เช็ค PIN 6 หลัก)
-    const handleAddMember = (e) => {
+    const handleAddMember = async (e) => {
         e.preventDefault();
         if (!newMember.name || !newMember.phone || !newMember.pin) return alert('กรุณากรอก ชื่อ, เบอร์โทร และ PIN ให้ครบถ้วน');
         if (newMember.pin.length !== 6) return alert('รหัส PIN ต้องมี 6 หลักพอดีครับ');
 
-        const newId = members.length > 0 ? Math.max(...members.map(m => m.id)) + 1 : 1;
-        setMembers([{ ...newMember, id: newId, wallet: 0, points: 0 }, ...members]);
-        setIsAddModalOpen(false);
-        // เคลียร์ค่า
-        setNewMember({ nickname: '', name: '', age: '', dob: '', phone: '', pin: '' });
+        try {
+            const dbName = newMember.nickname ? `${newMember.nickname} (${newMember.name})` : newMember.name;
+            const created = await fetchJSON('/members/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: dbName,
+                    phone: newMember.phone,
+                    pin: newMember.pin,
+                    points: 0,
+                    wallet: 0
+                })
+            });
+            setMembers([created, ...members]);
+            setIsAddModalOpen(false);
+            setNewMember({ nickname: '', name: '', age: '', dob: '', phone: '', pin: '' });
+        } catch (error) {
+            alert('Failed to add member: ' + error.message);
+        }
     };
 
-    const handleTopup = (e) => {
+    const handleTopup = async (e) => {
         e.preventDefault();
         const amount = parseFloat(topupAmount);
         if (!amount || amount <= 0) return alert('กรุณาระบุจำนวนเงินที่ถูกต้อง');
-        setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: (m.wallet || 0) + amount } : m));
-        alert(`เติมเงิน ฿${amount} ให้คุณ ${topupMember.name} สำเร็จ!`);
-        setTopupMember(null);
-        setTopupAmount('');
+
+        try {
+            const updated = await fetchJSON(`/members/${topupMember.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: topupMember.name,
+                    phone: topupMember.phone,
+                    points: topupMember.points,
+                    wallet: (topupMember.wallet || 0) + amount
+                })
+            });
+            setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: updated.wallet } : m));
+            alert(`เติมเงิน ฿${amount} ให้คุณ ${topupMember.name} สำเร็จ!`);
+            setTopupMember(null);
+            setTopupAmount('');
+        } catch (error) {
+            alert('Failed to topup: ' + error.message);
+        }
     };
 
     // 🌟 3. อัปเดตฟังก์ชันแก้ไขข้อมูล
-    const handleEditSubmit = (e) => {
+    const handleEditSubmit = async (e) => {
         e.preventDefault();
         if (!editForm.name || !editForm.phone || !editForm.pin) return alert('กรุณากรอก ชื่อ, เบอร์โทร และ PIN ให้ครบถ้วน');
         if (editForm.pin.length !== 6) return alert('รหัส PIN ต้องมี 6 หลักพอดีครับ');
 
-        setMembers(members.map(m => m.id === editMember.id ? { ...m, ...editForm } : m));
-        setEditMember(null);
+        try {
+            const dbName = editForm.nickname ? `${editForm.nickname} (${editForm.name})` : editForm.name;
+            const updated = await fetchJSON(`/members/${editMember.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: dbName,
+                    phone: editForm.phone,
+                    pin: editForm.pin,
+                    points: editMember.points,
+                    wallet: editMember.wallet
+                })
+            });
+            setMembers(members.map(m => m.id === editMember.id ? { ...m, ...updated, nickname: editForm.nickname, name: editForm.name, pin: editForm.pin } : m));
+            setEditMember(null);
+        } catch (error) {
+            alert('Failed to edit member: ' + error.message);
+        }
     };
 
-    const handleDelete = (member) => {
+    const handleDelete = async (member) => {
         if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบสมาชิก "${member.name}" ?\n(ยอดเงินและคะแนนสะสมจะหายไปทั้งหมด)`)) {
-            setMembers(members.filter(m => m.id !== member.id));
+            try {
+                await fetchJSON(`/members/${member.id}`, { method: 'DELETE' });
+                setMembers(members.filter(m => m.id !== member.id));
+            } catch (error) {
+                alert('Failed to delete member: ' + error.message);
+            }
         }
     };
 

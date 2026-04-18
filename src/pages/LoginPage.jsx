@@ -1,26 +1,34 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api.js';
 
 export default function LoginPage() {
     const [pin, setPin] = useState('');
     const { employees, setCurrentEmployee } = useContext(AppContext);
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
 
-        // เช็คว่ารหัสที่พิมพ์เข้ามาคือ 1234 ใช่หรือไม่?
-        if (pin === '1234') {
-            // 1. บันทึกกุญแจว่า "ล็อคอินแล้ว"
+        try {
+            const data = await fetchJSON('/employees/login', {
+                method: 'POST',
+                body: JSON.stringify({ pin })
+            });
+
+            // 1. บันทึกกุญแจว่า "ล็อคอินแล้ว" พร้อมรับ role จากเซิร์ฟเวอร์
             localStorage.setItem('isLoggedIn', 'true');
-            localStorage.setItem('userRole', 'admin');
+            localStorage.setItem('userRole', data.employee.role);
+            
+            // เซฟข้อมูลพนักงานปัจจุบันเข้าไปใน Context ด้วย
+            setCurrentEmployee(data.employee);
 
             // 2. สั่งให้เด้งเข้าไปที่หน้า Admin
             navigate('/admin');
-        } else {
+        } catch (error) {
             // ถ้ารหัสผิด ให้แจ้งเตือนและล้างช่องพิมพ์
-            alert('รหัสผ่านไม่ถูกต้อง! (รหัสสำหรับทดสอบคือ 1234 ครับ)');
+            alert(error.message || 'รหัสผ่านไม่ถูกต้อง!');
             setPin('');
         }
     };
