@@ -1,5 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api.js';
 
 export default function CheckoutModal({ onClose }) {
     // 🌟 นำเข้า members และ setMembers จาก Context
@@ -41,7 +42,7 @@ export default function CheckoutModal({ onClose }) {
     };
 
     // ฟังก์ชันยืนยันการชำระเงิน
-    const handleCompleteSale = () => {
+    const handleCompleteSale = async () => {
         // เช็คกรณีเงินสด
         if (paymentMethod === 'CASH' && (!receivedAmount || parseFloat(receivedAmount) < total)) {
             return alert('กรุณาระบุเงินที่รับมาให้ถูกต้อง');
@@ -52,11 +53,28 @@ export default function CheckoutModal({ onClose }) {
             if (!selectedMember) return alert('กรุณาค้นหาและเลือกสมาชิกก่อนชำระเงิน');
             if (selectedMember.wallet < total) return alert('ยอดเงิน E-Wallet ไม่พอ กรุณาเติมเงินหรือเลือกวิธีชำระอื่นครับ');
 
-            // หักเงินจากกระเป๋าสมาชิก (อัปเดต State)
-            if (setMembers) {
+            try {
+                // หักเงินจาก DB จริง
+                const newWallet = (selectedMember.wallet || 0) - total;
+                const updated = await fetchJSON(`/members/${selectedMember.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        name: selectedMember.name,
+                        phone: selectedMember.phone,
+                        pin: selectedMember.pin,
+                        points: selectedMember.points,
+                        wallet: newWallet,
+                        age: selectedMember.age || null,
+                        dob: selectedMember.dob || null
+                    })
+                });
+
+                // อัปเดต state ให้ตรงกับ DB
                 setMembers(members.map(m =>
-                    m.id === selectedMember.id ? { ...m, wallet: m.wallet - total } : m
+                    m.id === selectedMember.id ? { ...m, wallet: updated.wallet } : m
                 ));
+            } catch (err) {
+                return alert('หักเงิน E-Wallet ไม่สำเร็จ: ' + err.message);
             }
         }
 
@@ -69,7 +87,7 @@ export default function CheckoutModal({ onClose }) {
             paymentMethod,
             timestamp: new Date(),
             cashier: currentEmployee?.name || 'Staff',
-            memberId: paymentMethod === 'EWALLET' ? selectedMember.id : null // เก็บประวัติว่าสมาชิกคนไหนซื้อ
+            memberId: paymentMethod === 'EWALLET' ? selectedMember.id : null
         };
 
         setTransactions([newTransaction, ...transactions]);
