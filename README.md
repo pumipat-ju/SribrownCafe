@@ -10,7 +10,7 @@
 
 ### 1. โคลนโปรเจกต์
 ```bash
-git clone (https://github.com/pumipat-ju/SribrownCafe.git)
+git clone https://github.com/pumipat-ju/SribrownCafe.git
 cd SribrownCafe
 ```
 
