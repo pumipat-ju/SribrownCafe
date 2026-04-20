@@ -32,16 +32,37 @@ export default function MenuTab() {
             }
         }
     };
-    const handleDeleteCat = (id) => { if (window.confirm('ต้องการลบหมวดหมู่นี้?')) setCategories(categories.filter(c => c.id !== id)); };
-
-    const saveCategory = () => {
-        if (!newCatName.trim()) return;
-        if (editingCat) {
-            setCategories(categories.map(c => c.id === editingCat.id ? { ...c, name: newCatName } : c));
-        } else {
-            setCategories([...categories, { id: 'c' + Date.now(), name: newCatName }]);
+    const handleDeleteCat = async (id) => { 
+        if (window.confirm('ต้องการลบหมวดหมู่นี้?')) {
+            try {
+                await fetchJSON(`/categories/${id}`, { method: 'DELETE' });
+                setCategories(categories.filter(c => c.id !== id));
+            } catch (e) {
+                alert('Failed to delete category: ' + e.message);
+            }
         }
-        setNewCatName(''); setEditingCat(null); setIsCatModalOpen(false);
+    };
+
+    const saveCategory = async () => {
+        if (!newCatName.trim()) return;
+        try {
+            if (editingCat) {
+                const updated = await fetchJSON(`/categories/${editingCat.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ name: newCatName })
+                });
+                setCategories(categories.map(c => c.id === editingCat.id ? updated : c));
+            } else {
+                const created = await fetchJSON(`/categories/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ name: newCatName })
+                });
+                setCategories([...categories, created]);
+            }
+            setNewCatName(''); setEditingCat(null); setIsCatModalOpen(false);
+        } catch (e) {
+            alert('Failed to save category: ' + e.message);
+        }
     };
 
     const saveMenuItem = async () => {
@@ -49,27 +70,34 @@ export default function MenuTab() {
         const finalCat = newItem.cat || categories[0]?.id;
         try {
             if (editingItem) {
-                await fetchJSON(`/menu/${editingItem.id}`, {
+                const updated = await fetchJSON(`/menu/${editingItem.id}`, {
                     method: 'PUT',
                     body: JSON.stringify({
                         name: newItem.name,
                         price: parseFloat(newItem.price),
-                        category: finalCat,
+                        category_name: finalCat,
                         image: newItem.color
                     })
                 });
-                setMenuItems(menuItems.map(it => it.id === editingItem.id ? { ...it, ...newItem, price: parseFloat(newItem.price), cat: finalCat } : it));
+                // 🌟 อัปเดต State โดยใช้ ID จริงที่ได้จากเซิร์ฟเวอร์ (Relational consistency)
+                setMenuItems(menuItems.map(it => it.id === editingItem.id ? { 
+                    ...it, 
+                    name: updated.name, 
+                    price: updated.price, 
+                    cat: updated.category_id, 
+                    color: updated.image 
+                } : it));
             } else {
                 const created = await fetchJSON(`/menu/`, {
                     method: 'POST',
                     body: JSON.stringify({
                         name: newItem.name,
                         price: parseFloat(newItem.price),
-                        category: finalCat,
+                        category_name: finalCat,
                         image: newItem.color
                     })
                 });
-                setMenuItems([...menuItems, { id: created.id, ...newItem, price: parseFloat(newItem.price), cat: finalCat }]);
+                setMenuItems([...menuItems, { id: created.id, name: newItem.name, price: parseFloat(newItem.price), cat: created.category_id, color: newItem.color }]);
             }
             setNewItem({ name: '', price: '', cat: '', color: 'bg-white' }); setEditingItem(null); setIsItemModalOpen(false);
         } catch (e) {
@@ -144,7 +172,7 @@ export default function MenuTab() {
                                     <label className="text-[10px] font-bold text-stone-400 block mb-2 uppercase tracking-widest">หมวดหมู่</label>
                                     <select value={newItem.cat} onChange={(e) => setNewItem({ ...newItem, cat: e.target.value })} className="w-full p-3.5 border-2 border-stone-100 bg-stone-50 rounded-2xl font-bold outline-none focus:border-emerald-500">
                                         <option value="">-- เลือกหมวดหมู่ --</option>
-                                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -166,7 +194,7 @@ export default function MenuTab() {
                     <button onClick={() => setIsCatModalOpen(true)} className="px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-full font-bold text-sm shadow-md flex items-center gap-2 active:scale-95 transition-all">
                         <span className="material-symbols-outlined text-[20px]">create_new_folder</span> เพิ่มหมวดหมู่
                     </button>
-                    <button onClick={() => { setNewItem({ ...newItem, cat: activeCatFilter !== 'all' ? activeCatFilter : categories[0]?.id }); setIsItemModalOpen(true); }} className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-bold text-sm shadow-md flex items-center gap-2 active:scale-95 transition-all">
+                    <button onClick={() => { setNewItem({ ...newItem, cat: activeCatFilter !== 'all' ? categories.find(c => c.id === activeCatFilter)?.name : categories[0]?.name }); setIsItemModalOpen(true); }} className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-bold text-sm shadow-md flex items-center gap-2 active:scale-95 transition-all">
                         <span className="material-symbols-outlined text-[20px]">add_circle</span> เพิ่มเมนู
                     </button>
                 </div>
@@ -271,7 +299,12 @@ export default function MenuTab() {
                                         </td>
                                         <td className="py-5 pr-8">
                                             <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => { setEditingItem(it); setNewItem({ name: it.name, price: it.price.toString(), cat: it.cat, color: it.color }); setIsItemModalOpen(true); }} className="w-8 h-8 flex items-center justify-center text-emerald-500 hover:bg-emerald-50 rounded-full transition-all"><span className="material-symbols-outlined text-[18px]">edit</span></button>
+                                                <button onClick={() => { 
+                                                    const currentCatName = categories.find(c => c.id === it.cat)?.name || '';
+                                                    setEditingItem(it); 
+                                                    setNewItem({ name: it.name, price: it.price.toString(), cat: currentCatName, color: it.color || 'bg-white' }); 
+                                                    setIsItemModalOpen(true); 
+                                                }} className="w-8 h-8 flex items-center justify-center text-emerald-500 hover:bg-emerald-50 rounded-full transition-all"><span className="material-symbols-outlined text-[18px]">edit</span></button>
                                                 <button onClick={() => handleDeleteItem(it.id)} className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"><span className="material-symbols-outlined text-[18px]">delete</span></button>
                                             </div>
                                         </td>

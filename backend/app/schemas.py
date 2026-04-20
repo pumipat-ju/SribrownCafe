@@ -53,9 +53,25 @@ class MemberOut(MemberBase):
         from_attributes = True
 
 
+class CategoryBase(BaseModel):
+    name: str
+
+
+class CategoryCreate(CategoryBase):
+    pass
+
+
+class CategoryOut(CategoryBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
 class MenuItemBase(BaseModel):
     name: str
-    category: Optional[str] = None
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     price: float
     stock: Optional[int] = 0
     image: Optional[str] = None
@@ -67,6 +83,7 @@ class MenuItemCreate(MenuItemBase):
 
 class MenuItemOut(MenuItemBase):
     id: int
+    category: Optional[CategoryOut] = None
 
     class Config:
         from_attributes = True

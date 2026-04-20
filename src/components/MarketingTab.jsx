@@ -288,6 +288,16 @@ export default function MarketingTab() {
                         <h3 className="font-black text-2xl mb-6 text-emerald-600 font-headline">จัดการโปรโมชัน</h3>
                         <div className="space-y-4 mb-8">
                             <div><label className="text-xs font-bold text-stone-500 block mb-2">ชื่อโปร</label><input name="name" defaultValue={promoModal.data?.name} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:border-emerald-500" required /></div>
+                            
+                            {/* 🌟 เพิ่มช่องเลือกหมวดหมู่ที่เข้าร่วมโปร */}
+                            <div>
+                                <label className="text-xs font-bold text-stone-500 block mb-2">ใช้กับหมวดหมู่</label>
+                                <select name="targetCat" defaultValue={promoModal.data?.targetCat} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:border-emerald-500">
+                                    <option value="all">ทุกหมวดหมู่</option>
+                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="text-xs font-bold text-stone-500 block mb-2">ซื้อขั้นต่ำ</label><input name="minQty" type="number" defaultValue={promoModal.data?.minQty || 2} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:border-emerald-500" required /></div>
                                 <div className="relative"><label className="text-xs font-bold text-stone-500 block mb-2 text-emerald-600">ลดราคา</label>

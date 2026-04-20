@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Date
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Date, ForeignKey
+from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
 
@@ -25,15 +26,25 @@ class Member(Base):
     dob    = Column(Date, nullable=True)
 
 
+class Category(Base):
+    __tablename__ = "categories"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+
+    items = relationship("MenuItem", back_populates="category")
+
+
 class MenuItem(Base):
     __tablename__ = "menu_items"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    category = Column(String(255), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     price = Column(Float, nullable=False)
     stock = Column(Integer, default=0)
     image = Column(String(255), nullable=True)
+
+    category = relationship("Category", back_populates="items")
 
 
 class Transaction(Base):

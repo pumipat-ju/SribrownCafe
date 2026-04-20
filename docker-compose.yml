@@ -24,6 +24,8 @@ services:
     environment:
       # Use the Docker service name "db" as the host for MySQL connection
       - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./backend:/app
     depends_on:
       - db
 

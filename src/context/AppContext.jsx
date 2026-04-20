@@ -26,11 +26,7 @@ export function AppProvider({ children }) {
     });
 
     // 2. ข้อมูลเมนู, หมวดหมู่ และ "ตัวเลือกเสริม (Option Groups)"
-    const [categories, setCategories] = useState([
-        { id: 'coffee', name: '☕️ กาแฟ' },
-        { id: 'tea', name: '🍵 ชา' },
-        { id: 'bakery', name: '🥐 ขนมอบ' }
-    ]);
+    const [categories, setCategories] = useState([]);
 
     const [optionGroups, setOptionGroups] = useState([
         { id: 'og_roast', name: 'เมล็ดกาแฟ', choices: [{ n: 'คั่วเข้ม', p: 0 }, { n: 'คั่วกลาง', p: 0 }, { n: 'คั่วอ่อน', p: 0 }], applyTo: ['coffee'] },
@@ -57,11 +53,13 @@ export function AppProvider({ children }) {
 
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
 
+        fetchJSON('/categories').then(setCategories).catch(e => console.error("Category fetch error", e));
+
         fetchJSON('/menu').then(data => {
             // แมปข้อมูลให้ตรงกับที่ Frontend คาดหวัง
             setMenuItems(data.map(item => ({
                 id: item.id,
-                cat: item.category?.toLowerCase() || 'coffee',
+                cat: item.category_id, // เชื่อมโดยใช้ ID ตามระบบ Relational Database
                 name: item.name,
                 price: item.price,
                 color: item.image || 'bg-white'
