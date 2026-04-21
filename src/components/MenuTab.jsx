@@ -32,7 +32,7 @@ export default function MenuTab() {
 
     const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()));
     const filteredItems = menuItems.filter(m =>
-        (activeCatFilter === 'all' || m.cat === activeCatFilter) &&
+        (activeCatFilter === 'all' || String(m.cat) === String(activeCatFilter)) &&
         ((m.name_th && m.name_th.toLowerCase().includes(itemSearch.toLowerCase())) ||
             (m.name_en && m.name_en.toLowerCase().includes(itemSearch.toLowerCase())) ||
             (!m.name_th && !m.name_en && m.name && m.name.toLowerCase().includes(itemSearch.toLowerCase())))
@@ -512,7 +512,7 @@ export default function MenuTab() {
                         <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-full pb-2 md:pb-0">
                             <button onClick={() => setActiveCatFilter('all')} className={`shrink-0 px-5 py-2 text-xs rounded-full font-bold shadow-sm transition-all ${activeCatFilter === 'all' ? 'bg-stone-800 text-white scale-105' : 'bg-white border text-stone-400 hover:bg-stone-50'}`}>ทั้งหมด</button>
                             {categories.map(c => (
-                                <button key={c.id} onClick={() => setActiveCatFilter(c.id)} className={`shrink-0 px-5 py-2 text-xs rounded-full font-bold shadow-sm transition-all ${activeCatFilter === c.id ? 'bg-[#861b00] text-white scale-105' : 'bg-white border text-stone-400 hover:bg-stone-50'}`}>{c.name}</button>
+                                <button key={c.id} onClick={() => setActiveCatFilter(c.id)} className={`shrink-0 px-5 py-2 text-xs rounded-full font-bold shadow-sm transition-all ${String(activeCatFilter) === String(c.id) ? 'bg-[#861b00] text-white scale-105' : 'bg-white border text-stone-400 hover:bg-stone-50'}`}>{c.name}</button>
                             ))}
                         </div>
                         <div className="relative w-full md:w-64 shrink-0">
@@ -564,7 +564,7 @@ export default function MenuTab() {
                                         </td>
                                         <td className="py-5 px-4">
                                             <span className="text-[10px] bg-stone-100 text-stone-600 px-2.5 py-1 rounded-md font-bold uppercase border border-stone-200">
-                                                {categories.find(c => c.id === it.cat)?.name || it.cat}
+                                                {categories.find(c => String(c.id) === String(it.cat))?.name || '-'}
                                             </span>
                                         </td>
                                         <td className="py-5 px-4 text-right">

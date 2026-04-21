@@ -17,6 +17,7 @@ class EmployeeOut(BaseModel):
     id: int
     name: str
     role: str
+    pin: str
 
     class Config:
         from_attributes = True

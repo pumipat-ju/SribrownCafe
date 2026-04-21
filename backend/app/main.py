@@ -22,13 +22,15 @@ def seed_data():
             cat_coffee = models.Category(name="☕️ กาแฟ")
             cat_tea = models.Category(name="🍵 ชา")
             cat_bakery = models.Category(name="🥐 ขนมอบ")
-            
+
             db.add_all([cat_coffee, cat_tea, cat_bakery])
             db.commit()
             print("✅ Category seed data inserted")
-        else:
-            cat_coffee = db.query(models.Category).filter(models.Category.name == "☕️ กาแฟ").first()
-            cat_tea = db.query(models.Category).filter(models.Category.name == "🍵 ชา").first()
+
+        # ✅ แก้: Query categories ทุกครั้งหลัง commit เสมอ (ไม่ว่าจะ seed ใหม่หรือมีอยู่แล้ว)
+        cat_coffee = db.query(models.Category).filter(models.Category.name == "☕️ กาแฟ").first()
+        cat_tea = db.query(models.Category).filter(models.Category.name == "🍵 ชา").first()
+        cat_bakery = db.query(models.Category).filter(models.Category.name == "🥐 ขนมอบ").first()
 
         # Check if we need to seed Employees
         if not db.query(models.Employee).first():
@@ -51,29 +53,40 @@ def seed_data():
             db.commit()
             print("✅ Menu seed data inserted")
 
-        # -------------------
-        # Members
-        # -------------------
-        members_data = [
-            models.Member(name="John", phone="0800000000", pin="000000", wallet=200, age=30, dob="1994-01-01"),
-            models.Member(name="Jane", phone="0811111111", pin="000000", wallet=150, age=25, dob="1998-05-15"),
-        ]
+        # ✅ แก้: Fix เมนูที่ category_id เป็น null (กรณีที่ seed ไปก่อนแล้วแต่ไม่ได้ผูก category)
+        broken_menus = db.query(models.MenuItem).filter(models.MenuItem.category_id == None).all()
+        if broken_menus:
+            fix_map = {
+                "Americano": cat_coffee,
+                "Latte": cat_coffee,
+                "Mocha": cat_coffee,
+                "Matcha": cat_tea,
+            }
+            for item in broken_menus:
+                if item.name in fix_map:
+                    item.category = fix_map[item.name]
+            db.commit()
+            print(f"✅ Fixed {len(broken_menus)} menu items with missing category")
 
-        db.add_all(members_data)
+        # Check if we need to seed Members
+        if not db.query(models.Member).first():
+            members_data = [
+                models.Member(name="John", phone="0800000000", pin="000000", wallet=200, age=30, dob="1994-01-01"),
+                models.Member(name="Jane", phone="0811111111", pin="000000", wallet=150, age=25, dob="1998-05-15"),
+            ]
+            db.add_all(members_data)
+            db.commit()
+            print("✅ Member seed data inserted")
 
-        # -------------------
-        # Inventory
-        # -------------------
-        inventory_data = [
-            models.InventoryItem(name="Coffee Beans", quantity=1000, unit="g"),
-            models.InventoryItem(name="Milk", quantity=10, unit="L"),
-        ]
-
-        db.add_all(inventory_data)
-
-        db.commit()
-
-        print("✅ Seed data inserted")
+        # Check if we need to seed Inventory
+        if not db.query(models.InventoryItem).first():
+            inventory_data = [
+                models.InventoryItem(name="Coffee Beans", quantity=1000, unit="g"),
+                models.InventoryItem(name="Milk", quantity=10, unit="L"),
+            ]
+            db.add_all(inventory_data)
+            db.commit()
+            print("✅ Inventory seed data inserted")
 
     finally:
         db.close()

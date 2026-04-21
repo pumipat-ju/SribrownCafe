@@ -48,7 +48,6 @@ export function AppProvider({ children }) {
     useEffect(() => {
         fetchJSON('/employees').then(data => {
             setEmployees(data);
-            if (data.length > 0) setCurrentEmployee(data[0]);
         }).catch(e => console.error("Employee fetch error", e));
 
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
@@ -56,11 +55,14 @@ export function AppProvider({ children }) {
         fetchJSON('/categories').then(setCategories).catch(e => console.error("Category fetch error", e));
 
         fetchJSON('/menu').then(data => {
-            // แมปข้อมูลให้ตรงกับที่ Frontend คาดหวัง
             setMenuItems(data.map(item => ({
                 id: item.id,
-                cat: Number(item.category_id), // 🌟 เติม Number() ครอบเข้าไปตรงนี้
+                // ✅ แก้: รองรับทั้ง nested object (category.id) และ flat field (category_id)
+                cat: item.category?.id ?? item.category_id ?? null,
+                // ✅ แก้: map name_th และ name_en ให้ครบ เพื่อให้ MenuTab filter/แสดงผลได้
                 name: item.name,
+                name_th: item.name_th || item.name || '',
+                name_en: item.name_en || '',
                 price: item.price,
                 color: item.image || 'bg-white'
             })));

@@ -120,9 +120,8 @@ export default function CheckoutModal({ onClose }) {
     };
 
     const handleVerifyMemberPin = () => {
-        // 🌟 ดึง PIN ของสมาชิกมาเช็ค (ถ้าในระบบยังไม่มี จะล็อค Default ไว้ที่ '123456' ให้เทสได้ครับ)
-        const validMemberPin = selectedMember?.pin ? String(selectedMember.pin) : '123456';
-
+        const validMemberPin = selectedMember?.pin ? String(selectedMember.pin) : null;
+        if (!validMemberPin) return alert('ไม่พบ PIN ของสมาชิก กรุณาตรวจสอบข้อมูล');
         if (memberPin === validMemberPin) {
             setIsMemberPinFlow(false); // ปิดหน้าต่าง PIN ลูกค้า
             setMemberPin('');          // ล้างรหัส
@@ -144,7 +143,8 @@ export default function CheckoutModal({ onClose }) {
     };
 
     const handleVerifyPin = () => {
-        const validPin = currentEmployee?.pin ? String(currentEmployee.pin) : '123456';
+        const validPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
+        if (!validPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
         if (topupPin === validPin) {
             setTopupStep('AMOUNT');
             setTopupPin('');
@@ -432,7 +432,16 @@ export default function CheckoutModal({ onClose }) {
                                     <span className="text-stone-800">฿{(selectedMember?.wallet || 0).toLocaleString()}</span>
                                 </div>
                             </div>
-                            <button onClick={resetTopupFlow} className="w-full py-4 bg-[#861b00] hover:bg-black text-white text-base font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95">
+                            <button onClick={() => {
+                                resetTopupFlow();
+                                // ถ้าเงินพอแล้ว ให้เด้ง member PIN ทันที
+                                setTimeout(() => {
+                                    if (selectedMember && selectedMember.wallet >= netTotal) {
+                                        setIsMemberPinFlow(true);
+                                        setMemberPin('');
+                                    }
+                                }, 100);
+                            }} className="w-full py-4 bg-[#861b00] hover:bg-black text-white text-base font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95">
                                 กลับไปชำระเงินต่อ <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
                             </button>
                         </div>
@@ -544,8 +553,8 @@ export default function CheckoutModal({ onClose }) {
                                     <button
                                         onClick={() => {
                                             if (selectedMember.wallet < netTotal) {
-                                                alert('ยอดเงิน E-Wallet ไม่พอ กรุณาเติมเงินให้ลูกค้าครับ');
-                                                // หรือจะเรียก setIsTopupFlow(true); ก็ได้ถ้าอยากให้เด้งถามเติมเงินทันที
+                                                setIsTopupFlow(true);
+                                                setTopupStep('PROMPT');
                                             } else {
                                                 // 🌟 เปิดหน้าต่างยืนยันรหัส PIN ของลูกค้า
                                                 setIsMemberPinFlow(true);

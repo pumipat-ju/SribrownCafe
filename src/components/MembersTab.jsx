@@ -88,7 +88,8 @@ export default function MembersTab() {
     };
 
     const handleVerifyArchivePin = () => {
-        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : '123456';
+        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
+        if (!validEmpPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
         if (archivePin === validEmpPin) {
             setShowArchived(true);
             setIsArchivePinOpen(false);
@@ -183,7 +184,8 @@ export default function MembersTab() {
     };
 
     const executePinReset = async () => {
-        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : '123456';
+        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
+        if (!validEmpPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
         if (employeeConfirmPin !== validEmpPin) {
             alert('รหัสพนักงานไม่ถูกต้อง! ไม่อนุญาตให้เปลี่ยน PIN ลูกค้าครับ');
             setEmployeeConfirmPin('');
@@ -218,13 +220,16 @@ export default function MembersTab() {
     };
 
     const handleVerifyTopupPin = async () => {
-        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : '123456';
+        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
+        if (!validEmpPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
         if (topupPin !== validEmpPin) {
             alert('รหัสพนักงานไม่ถูกต้อง! ไม่สามารถทำรายการเติมเงินได้');
             setTopupPin('');
             return;
         }
         const amount = parseFloat(topupAmount);
+        const newWallet = (topupMember.wallet || 0) + amount;
+        const newPoints = (topupMember.points || 0) + amount; // เติม ฿1 = 1 point
 
         // 🌟 สร้างข้อมูลสลิปจำลอง
         const receipt = {
@@ -232,18 +237,31 @@ export default function MembersTab() {
             amount: amount,
             cashier: currentEmployee?.name || 'Admin',
             paymentMethod: 'เงินสด/QR',
-            newBalance: (topupMember.wallet || 0) + amount
+            newBalance: newWallet
         };
 
         try {
-            const updated = await fetchJSON(`/members/${topupMember.id}`, { method: 'PUT', body: JSON.stringify({ ...topupMember, wallet: receipt.newBalance }) });
-            setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: updated.wallet || receipt.newBalance } : m));
+            const updated = await fetchJSON(`/members/${topupMember.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    ...topupMember,
+                    wallet: newWallet,
+                    points: newPoints
+                })
+            });
+            setMembers(members.map(m => m.id === topupMember.id
+                ? { ...m, wallet: updated.wallet ?? newWallet, points: updated.points ?? newPoints }
+                : m
+            ));
 
             // 🌟 เปลี่ยน State เป็น SUCCESS แทนการ Alert
             setTopupReceipt(receipt);
             setTopupStep('SUCCESS');
         } catch (error) {
-            setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: receipt.newBalance } : m));
+            setMembers(members.map(m => m.id === topupMember.id
+                ? { ...m, wallet: newWallet, points: newPoints }
+                : m
+            ));
             setTopupReceipt(receipt);
             setTopupStep('SUCCESS');
         }
@@ -267,7 +285,8 @@ export default function MembersTab() {
     };
 
     const handleVerifyCouponPin = () => {
-        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : '123456';
+        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
+        if (!validEmpPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
         if (couponPin !== validEmpPin) {
             alert('รหัสพนักงานไม่ถูกต้อง! ไม่สามารถทำรายการแจกคูปองได้');
             setCouponPin('');
@@ -292,9 +311,10 @@ export default function MembersTab() {
         else if (num === 'DEL') setDeletePin(prev => prev.slice(0, -1));
         else if (deletePin.length < 6) setDeletePin(prev => prev + num);
     };
-
+    
     const handleVerifyDeletePin = async () => {
-        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : '123456';
+        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
+        if (!validEmpPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
         if (deletePin !== validEmpPin) {
             alert('รหัสพนักงานไม่ถูกต้อง! ไม่อนุญาตให้ระงับบัญชี');
             setDeletePin('');

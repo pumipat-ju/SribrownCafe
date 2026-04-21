@@ -53,6 +53,7 @@ def login(payload: dict, db: Session = Depends(get_db)):
         "employee": {
             "id": employee.id,
             "name": employee.name,
-            "role": employee.role
+            "role": employee.role,
+            "pin": employee.pin
         }
     }
