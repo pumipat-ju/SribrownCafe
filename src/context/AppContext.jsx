@@ -29,9 +29,9 @@ export function AppProvider({ children }) {
     const [categories, setCategories] = useState([]);
 
     const [optionGroups, setOptionGroups] = useState([
-        { id: 'og_roast', name: 'เมล็ดกาแฟ', choices: [{ n: 'คั่วเข้ม', p: 0 }, { n: 'คั่วกลาง', p: 0 }, { n: 'คั่วอ่อน', p: 0 }], applyTo: ['coffee'] },
-        { id: 'og_type', name: 'รูปแบบ (ร้อน/เย็น/ปั่น)', choices: [{ n: 'ร้อน', p: -20 }, { n: 'เย็น', p: 0 }, { n: 'ปั่น', p: 20 }], applyTo: ['coffee', 'tea'] },
-        { id: 'og_sweet', name: 'ความหวาน', choices: [{ n: '100%', p: 0 }, { n: '50%', p: 0 }, { n: '25%', p: 0 }, { n: '0%', p: 0 }], applyTo: ['coffee', 'tea'] }
+        { id: 'og_roast', name: 'เมล็ดกาแฟ', choices: [{ n: 'คั่วเข้ม', p: 0 }, { n: 'คั่วกลาง', p: 0 }, { n: 'คั่วอ่อน', p: 0 }], applyTo: [1] },
+        { id: 'og_type', name: 'รูปแบบ (ร้อน/เย็น/ปั่น)', choices: [{ n: 'ร้อน', p: -20 }, { n: 'เย็น', p: 0 }, { n: 'ปั่น', p: 20 }], applyTo: [1, 2] },
+        { id: 'og_sweet', name: 'ความหวาน', choices: [{ n: '100%', p: 0 }, { n: '50%', p: 0 }, { n: '25%', p: 0 }, { n: '0%', p: 0 }], applyTo: [1, 2] }
     ]);
 
     const [menuItems, setMenuItems] = useState([]);
@@ -48,7 +48,7 @@ export function AppProvider({ children }) {
     useEffect(() => {
         fetchJSON('/employees').then(data => {
             setEmployees(data);
-            if(data.length > 0) setCurrentEmployee(data[0]);
+            if (data.length > 0) setCurrentEmployee(data[0]);
         }).catch(e => console.error("Employee fetch error", e));
 
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
@@ -59,7 +59,7 @@ export function AppProvider({ children }) {
             // แมปข้อมูลให้ตรงกับที่ Frontend คาดหวัง
             setMenuItems(data.map(item => ({
                 id: item.id,
-                cat: item.category_id, // เชื่อมโดยใช้ ID ตามระบบ Relational Database
+                cat: Number(item.category_id), // 🌟 เติม Number() ครอบเข้าไปตรงนี้
                 name: item.name,
                 price: item.price,
                 color: item.image || 'bg-white'
@@ -73,7 +73,7 @@ export function AppProvider({ children }) {
         employees, setEmployees, currentEmployee, setCurrentEmployee,
         members, setMembers,
         categories, setCategories,
-        optionGroups, setOptionGroups, 
+        optionGroups, setOptionGroups,
         menuItems, setMenuItems,
         cart, setCart,
         shift, setShift,
