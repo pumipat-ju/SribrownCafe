@@ -48,12 +48,15 @@ export default function MembersTab() {
         return match ? `${match[1]}-${match[2]}-${match[3]}` : p;
     };
 
-    const getTier = (points) => {
-        const p = points || 0;
-        if (p >= 15000) return { name: 'Platinum', color: 'text-stone-700 bg-stone-100 border-stone-200' };
-        if (p >= 5000) return { name: 'Gold', color: 'text-yellow-700 bg-yellow-50 border-yellow-200' };
-        if (p >= 1000) return { name: 'Silver', color: 'text-slate-600 bg-slate-50 border-slate-200' };
-        return { name: 'Bronze', color: 'text-amber-700 bg-amber-50 border-amber-200' };
+    const getTier = (member) => {
+        const tierName = member.tier || 'Bronze';
+        const config = {
+            Platinum: { name: 'Platinum', color: 'text-stone-700 bg-stone-100 border-stone-200' },
+            Gold: { name: 'Gold', color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+            Silver: { name: 'Silver', color: 'text-slate-600 bg-slate-50 border-slate-200' },
+            Bronze: { name: 'Bronze', color: 'text-amber-700 bg-amber-50 border-amber-200' }
+        };
+        return config[tierName] || config.Bronze;
     };
 
     // 🌟 คำนวณสถิติเฉพาะคนที่ยัง Active
@@ -61,7 +64,7 @@ export default function MembersTab() {
     const totalMembers = activeMembers.length;
     const totalWallet = activeMembers.reduce((sum, m) => sum + (m.wallet || 0), 0);
     const tierCounts = { Bronze: 0, Silver: 0, Gold: 0, Platinum: 0 };
-    activeMembers.forEach(m => { tierCounts[getTier(m.points).name]++; });
+    activeMembers.forEach(m => { tierCounts[getTier(m).name]++; });
 
     // 🌟 กรองรายชื่อ (Search & Archive Toggle)
     const filteredMembers = members?.filter(m => {
@@ -446,7 +449,7 @@ export default function MembersTab() {
                                     <td colSpan="6" className="py-12 text-center text-stone-400 font-bold">ไม่พบข้อมูลลูกค้าในหมวดหมู่นี้</td>
                                 </tr>
                             ) : filteredMembers.map((member, index) => {
-                                const tier = getTier(member.points);
+                                    const tier = getTier(member);
                                 const displayName = member.nickname ? `${member.nickname} (${member.name})` : member.name;
                                 const avatarChar = (member.nickname || member.name || '?').charAt(0);
 

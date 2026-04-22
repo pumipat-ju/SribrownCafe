@@ -22,6 +22,7 @@ class Member(Base):
     pin    = Column(String(10), nullable=False)
     points = Column(Float, default=0.0)
     wallet = Column(Float, default=0.0)
+    tier   = Column(String(50), default="Bronze")
     age    = Column(Integer, nullable=True)
     dob    = Column(Date, nullable=True)
 

@@ -29,6 +29,7 @@ class MemberBase(BaseModel):
     pin: str
     points: Optional[float] = 0.0
     wallet: Optional[float] = 0.0
+    tier: Optional[str] = "Bronze"
     age: Optional[int] = None
     dob: Optional[date] = None
 
