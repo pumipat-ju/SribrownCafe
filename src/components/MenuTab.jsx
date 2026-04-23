@@ -1,5 +1,6 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api';
 
 export default function MenuTab({ menuAction, setMenuAction }) {
     const { categories, setCategories, menuItems, setMenuItems, optionGroups, setOptionGroups } = useContext(AppContext);
@@ -41,18 +42,78 @@ export default function MenuTab({ menuAction, setMenuAction }) {
 
     const filteredItems = menuItems.filter(m => (activeCatFilter === 'all' || String(m.cat) === String(activeCatFilter)) && ((m.name_th?.toLowerCase().includes(itemSearch.toLowerCase())) || (m.name_en?.toLowerCase().includes(itemSearch.toLowerCase()))));
 
-    const saveCategory = () => {
+    const saveCategory = async () => {
         if (!newCatName.trim()) return;
-        if (editingCat) setCategories(categories.map(c => c.id === editingCat.id ? { ...c, name: newCatName } : c));
-        else setCategories([...categories, { id: `c${Date.now()}`, name: newCatName }]);
-        setIsCatModalOpen(false); setEditingCat(null); setNewCatName('');
+        try {
+            if (editingCat) {
+                const updated = await fetchJSON(`/categories/${editingCat.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ name: newCatName })
+                });
+                setCategories(categories.map(c => c.id === updated.id ? updated : c));
+            } else {
+                const created = await fetchJSON('/categories', {
+                    method: 'POST',
+                    body: JSON.stringify({ name: newCatName })
+                });
+                setCategories([...categories, created]);
+            }
+            setIsCatModalOpen(false); setEditingCat(null); setNewCatName('');
+        } catch (e) { alert("เซฟหมวดหมู่ไม่สำเร็จ: " + e.message); }
     };
 
-    const saveMenuItem = () => {
+    const saveMenuItem = async () => {
         if (!newItem.name_th || !newItem.price) return alert('ระบุชื่อและราคา');
-        if (editingItem) setMenuItems(menuItems.map(m => m.id === editingItem.id ? { ...m, ...newItem, price: parseFloat(newItem.price) } : m));
-        else setMenuItems([{ ...newItem, id: Date.now(), price: parseFloat(newItem.price) }, ...menuItems]);
-        setIsItemModalOpen(false); setEditingItem(null);
+        
+        // 🌟 แปลง ID เป็นชื่อหมวดหมู่ เพื่อให้ระบบ Auto-Mapping ของหลังบ้านทำงาน
+        const targetCat = categories.find(c => String(c.id) === String(newItem.cat));
+        const payload = {
+            name: newItem.name_th, // ใช้ name_th เป็นชื่อหลัก
+            name_th: newItem.name_th,
+            name_en: newItem.name_en,
+            price: parseFloat(newItem.price),
+            category_name: targetCat ? targetCat.name : null,
+            image: newItem.image,
+            color: newItem.color
+        };
+
+        try {
+            if (editingItem) {
+                const updated = await fetchJSON(`/menu/${editingItem.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                // อัปเดต state ทันที
+                setMenuItems(menuItems.map(m => m.id === updated.id ? {
+                    ...updated,
+                    cat: updated.category_id,
+                    name_th: updated.name_th || updated.name
+                } : m));
+            } else {
+                const created = await fetchJSON('/menu', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                setMenuItems([{ ...created, cat: created.category_id, name_th: created.name_th || created.name }, ...menuItems]);
+            }
+            setIsItemModalOpen(false); setEditingItem(null);
+        } catch (e) { alert("เซฟเมนูไม่สำเร็จ: " + e.message); }
+    };
+
+    const handleDeleteItem = async (id) => {
+        if (!window.confirm('ลบเมนูนี้?')) return;
+        try {
+            await fetchJSON(`/menu/${id}`, { method: 'DELETE' });
+            setMenuItems(menuItems.filter(m => m.id !== id));
+        } catch (e) { alert("ลบไม่สำเร็จ: " + e.message); }
+    };
+
+    const handleDeleteCategory = async (id) => {
+        if (!window.confirm('ลบหมวดหมู่นี้? เมนูในหมวดนี้จะกลายเป็นไม่มีหมวดหมู่')) return;
+        try {
+            await fetchJSON(`/categories/${id}`, { method: 'DELETE' });
+            setCategories(categories.filter(c => c.id !== id));
+        } catch (e) { alert("ลบหมวดหมู่ไม่สำเร็จ: " + e.message); }
     };
 
     const handleImageUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => setNewItem({ ...newItem, image: reader.result }); reader.readAsDataURL(file); } };
@@ -60,7 +121,7 @@ export default function MenuTab({ menuAction, setMenuAction }) {
     const handleDropCat = (idx) => { const n = [...categories]; const [m] = n.splice(draggedIdx, 1); n.splice(idx, 0, m); setCategories(n); setDraggedIdx(null); };
     const handleDragStartItem = (idx) => setDraggedIdx(idx);
     const handleDropItem = (idx) => {
-        const n = [...menuItems]; const v = n.filter(m => activeCatFilter === 'all' || m.cat === activeCatFilter);
+        const n = [...menuItems]; const v = n.filter(m => activeCatFilter === 'all' || String(m.cat) === String(activeCatFilter));
         const d = n.findIndex(m => m.id === v[draggedIdx].id); const t = n.findIndex(m => m.id === v[idx].id);
         const [m] = n.splice(d, 1); n.splice(t, 0, m); setMenuItems(n); setDraggedIdx(null);
     };
@@ -120,7 +181,7 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                 <div className="flex items-center gap-2 overflow-hidden"><span className="material-symbols-outlined text-stone-300 text-sm shrink-0">drag_indicator</span><span className="text-stone-700 truncate">{c.name}</span></div>
                                 <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shrink-0">
                                     <button onClick={() => { setEditingCat(c); setNewCatName(c.name); setIsCatModalOpen(true); }} className="w-7 h-7 rounded-full text-emerald-500 hover:bg-emerald-50 flex items-center justify-center border bg-white shadow-sm"><span className="material-symbols-outlined text-[14px]">edit</span></button>
-                                    <button onClick={() => window.confirm('ลบหมวดหมู่นี้?') && setCategories(categories.filter(cat => cat.id !== c.id))} className="w-7 h-7 rounded-full text-stone-300 hover:text-red-500 flex items-center justify-center border bg-white shadow-sm"><span className="material-symbols-outlined text-[14px]">delete</span></button>
+                                    <button onClick={() => handleDeleteCategory(c.id)} className="w-7 h-7 rounded-full text-stone-300 hover:text-red-500 flex items-center justify-center border bg-white shadow-sm"><span className="material-symbols-outlined text-[14px]">delete</span></button>
                                 </div>
                             </li>
                         ))}

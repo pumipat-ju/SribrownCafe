@@ -99,11 +99,33 @@ export default function CheckoutModal({ onClose }) {
             }
         }
 
-        // 🌟 แก้ไข/เพิ่ม ข้อมูลตรงนี้เพื่อให้ลิงก์กับกะขาย
-        const now = new Date(); // สร้างเวลาปัจจุบันไว้ใช้ร่วมกัน
+        // 🌟 สร้างรายละเอียดสินค้าเพื่อเก็บลง Transaction
+        const itemSummary = cart.map(item => `${item.name} x${item.qty}`).join(', ');
+        const descText = selectedMember 
+            ? `ขายให้: ${selectedMember.name} (${itemSummary})` 
+            : `ขายทั่วไป: ${itemSummary}`;
+
+        const now = new Date();
+
+        // 🌟 บันทึกลง Database จริง
+        let dbTransaction = null;
+        try {
+            dbTransaction = await fetchJSON('/transactions/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    type: 'SALE',
+                    amount: netTotal,
+                    method: method,
+                    desc: descText,
+                    cashier: currentEmployee?.name || 'Staff'
+                })
+            });
+        } catch (e) {
+            console.error("Failed to save transaction to DB:", e);
+        }
 
         const newTransaction = {
-            id: `TXN-${Date.now().toString().slice(-6)}`,
+            id: dbTransaction?.id ? `TXN-${dbTransaction.id}` : `TXN-${Date.now().toString().slice(-6)}`,
             type: 'SALE',
             amount: netTotal,
             subtotal: subtotal,
@@ -111,20 +133,17 @@ export default function CheckoutModal({ onClose }) {
             beforeVat: beforeVat,
             vatAmount: vatAmount,
             items: cart,
-            paymentMethod: method, // 'CASH' หรือ 'QR' หรือ 'EWALLET'
-            method: method,        // เพิ่มฟิลด์ method สำรองไว้เพื่อความชัวร์ในการ Filter
+            paymentMethod: method, 
+            method: method,        
             receivedAmount: method === 'CASH' ? parseFloat(receivedAmount) : netTotal,
             change: method === 'CASH' ? change : 0,
             timestamp: now,
-
-            // 🔥 บรรทัดที่สำคัญที่สุด: ใช้สำหรับเช็คว่ารายการนี้อยู่ในกะปัจจุบันหรือไม่
             dateRaw: now.toISOString(),
-
-            timestamp: now,
             date: now.toLocaleDateString('th-TH'),
             time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
             cashier: currentEmployee?.name || 'Staff',
             member: selectedMember ? { ...selectedMember, newWalletBalance } : null,
+            desc: descText // เก็บไว้โชว์หน้า UI ด้วย
         };
 
         setTransactions([newTransaction, ...transactions]);
@@ -168,7 +187,23 @@ export default function CheckoutModal({ onClose }) {
         const addAmount = parseFloat(topupAmount);
         const newWallet = (selectedMember.wallet || 0) + addAmount;
         const updatedMember = { ...selectedMember, wallet: newWallet };
-        try { await fetchJSON(`/members/${selectedMember.id}`, { method: 'PUT', body: JSON.stringify(updatedMember) }); } catch (e) { }
+        
+        try { 
+            await fetchJSON(`/members/${selectedMember.id}`, { method: 'PUT', body: JSON.stringify(updatedMember) }); 
+            
+            // 🌟 บันทึกรายการ Top-up ลง Transaction Database
+            await fetchJSON('/transactions/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    type: 'TOPUP',
+                    amount: addAmount,
+                    method: method,
+                    desc: `เติมเงินให้: ${selectedMember.name}`,
+                    cashier: currentEmployee?.name || 'Staff'
+                })
+            });
+        } catch (e) { console.error("Topup record failed:", e); }
+        
         setSelectedMember(updatedMember);
 
         const topupTxn = {

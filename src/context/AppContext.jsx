@@ -41,25 +41,33 @@ export function AppProvider({ children }) {
     const [shift, setShift] = useState({
         isOpen: false, startCash: 0, salesCash: 0, cashIn: 0, cashOut: 0
     });
-    const [currentEmployee, setCurrentEmployee] = useState(null);
+    
+    // 🌟 แก้ไข: โหลดข้อมูลพนักงานจาก localStorage (ถ้ามี)
+    const [currentEmployee, setCurrentEmployee] = useState(() => {
+        const saved = localStorage.getItem('sribrown_employee');
+        return saved ? JSON.parse(saved) : null;
+    });
+
     const [transactions, setTransactions] = useState([]);
 
-    // 🌟 โหลดข้อมูลจาก Backend อัตโนมัติเมื่อเริ่มแอป
+    // 🌟 บันทึกพนักงานลง localStorage ทุกครั้งที่เปลี่ยน
     useEffect(() => {
-        fetchJSON('/employees').then(data => {
-            setEmployees(data);
-        }).catch(e => console.error("Employee fetch error", e));
+        if (currentEmployee) {
+            localStorage.setItem('sribrown_employee', JSON.stringify(currentEmployee));
+        } else {
+            localStorage.removeItem('sribrown_employee');
+        }
+    }, [currentEmployee]);
 
+    // 🌟 ฟังก์ชันสำหรับโหลดข้อมูล (แยกออกมาเพื่อให้เรียกซ้ำได้)
+    const refreshData = () => {
+        fetchJSON('/employees').then(setEmployees).catch(e => console.error("Employee fetch error", e));
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
-
         fetchJSON('/categories').then(setCategories).catch(e => console.error("Category fetch error", e));
-
         fetchJSON('/menu').then(data => {
             setMenuItems(data.map(item => ({
                 id: item.id,
-                // ✅ แก้: รองรับทั้ง nested object (category.id) และ flat field (category_id)
                 cat: item.category?.id ?? item.category_id ?? null,
-                // ✅ แก้: map name_th และ name_en ให้ครบ เพื่อให้ MenuTab filter/แสดงผลได้
                 name: item.name,
                 name_th: item.name_th || item.name || '',
                 name_en: item.name_en || '',
@@ -68,7 +76,26 @@ export function AppProvider({ children }) {
             })));
         }).catch(e => console.error("Menu fetch error", e));
 
-        fetchJSON('/transactions').then(setTransactions).catch(e => console.error("Transaction fetch error", e));
+        fetchJSON('/transactions').then(data => {
+            setTransactions(data.map(t => {
+                const dt = new Date(t.created_at);
+                return {
+                    ...t,
+                    date: dt.toLocaleDateString('th-TH'),
+                    time: dt.toLocaleTimeString('th-TH').slice(0, 5) + ' น.'
+                };
+            }));
+        }).catch(e => console.error("Transaction fetch error", e));
+    };
+
+    // 🌟 โหลดข้อมูลครั้งแรก และตั้งเวลา Auto-Refresh (Polling)
+    useEffect(() => {
+        refreshData();
+        
+        // ดึงข้อมูลใหม่ทุกๆ 10 วินาที
+        const interval = setInterval(refreshData, 10000); 
+        
+        return () => clearInterval(interval); // ล้าง Interval เมื่อปิดแอป
     }, []);
 
     const value = {

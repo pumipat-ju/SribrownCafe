@@ -300,6 +300,23 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                     points: newPoints
                 })
             });
+
+            // 🌟 บันทึกรายการ Top-up ลง Database จริง
+            try {
+                await fetchJSON('/transactions/', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        type: 'TOPUP',
+                        amount: amount,
+                        method: 'เงินสด/QR',
+                        desc: `เติมเงินให้: ${topupMember.name}`,
+                        cashier: currentEmployee?.name || 'Staff'
+                    })
+                });
+            } catch (txErr) {
+                console.error("Failed to record topup transaction:", txErr);
+            }
+
             setMembers(members.map(m => m.id === topupMember.id
                 ? { ...m, wallet: updated.wallet ?? newWallet, points: updated.points ?? newPoints }
                 : m

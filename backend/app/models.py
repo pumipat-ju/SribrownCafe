@@ -40,7 +40,7 @@ class MenuItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     price = Column(Float, nullable=False)
     stock = Column(Integer, default=0)
     image = Column(String(255), nullable=True)
