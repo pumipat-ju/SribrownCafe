@@ -1,34 +1,73 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../context/AppContext';
 
 export default function CashTab() {
+    // 🛡️ ดึงข้อมูลมาอย่างระมัดระวัง
     const { shift, setShift, transactions, setTransactions, currentEmployee } = useContext(AppContext);
 
     const [modalMode, setModalMode] = useState(null);
     const [formData, setFormData] = useState({ category: 'อื่นๆ', note: '', amount: '' });
 
-    const expectedCash = shift.startCash + shift.salesCash + shift.cashIn - shift.cashOut;
-    const cashTransactions = transactions.filter(t => t.method === 'CASH');
+    // ==========================================
+    // 🌟 1. ระบบคำนวณแบบ "Bulletproof" (กันเด้ง 100%)
+    // ==========================================
+    const cashStats = useMemo(() => {
+        // ใช้ค่า Default เป็น 0 เสมอถ้าไม่มีข้อมูล
+        const start = parseFloat(shift?.startCash || 0);
+        const cin = parseFloat(shift?.cashIn || 0);
+        const cout = parseFloat(shift?.cashOut || 0);
+
+        // ถ้ายังไม่เปิดกะ ให้คืนค่าเริ่มต้นไปเลย ไม่ต้องไป Filter วันที่ (ป้องกัน Crash)
+        if (!shift?.isOpen || !shift?.startTime) {
+            return { start, sales: 0, cin, cout, expected: start + cin - cout };
+        }
+
+        // กรองยอดขายเงินสด "เฉพาะในกะนี้"
+        const currentSales = (transactions || [])
+            .filter(t =>
+                t.dateRaw &&
+                new Date(t.dateRaw) > new Date(shift.startTime) &&
+                t.type === 'SALE' &&
+                (t.method === 'CASH' || t.paymentMethod === 'CASH' || t.method === 'cash')
+            )
+            .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+        const expected = start + currentSales + cin - cout;
+
+        return { start, sales: currentSales, cin, cout, expected };
+    }, [shift, transactions]);
+
+    // กรองตารางให้ปลอดภัย
+    const cashTransactions = (transactions || []).filter(t => {
+        const isCash = t.method === 'CASH' || t.paymentMethod === 'CASH' || t.method === 'cash';
+        const isCurrentShift = shift?.startTime && t.dateRaw && new Date(t.dateRaw) > new Date(shift.startTime);
+        return isCash && isCurrentShift;
+    });
 
     const handleSave = () => {
         const amount = parseFloat(formData.amount);
         if (!amount || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้องครับ');
+        if (!shift?.isOpen) return alert('กรุณาเปิดกะก่อนบันทึกรายการครับ');
 
-        if (modalMode === 'expense') {
-            setShift({ ...shift, cashOut: shift.cashOut + amount });
-        } else {
-            setShift({ ...shift, cashIn: shift.cashIn + amount });
-        }
+        const now = new Date();
+
+        // อัปเดต State shift แบบปลอดภัย
+        setShift(prev => ({
+            ...prev,
+            cashIn: modalMode === 'income' ? (prev.cashIn || 0) + amount : (prev.cashIn || 0),
+            cashOut: modalMode === 'expense' ? (prev.cashOut || 0) + amount : (prev.cashOut || 0),
+        }));
 
         const newTxn = {
             id: Date.now(),
             type: modalMode === 'expense' ? 'EXPENSE' : 'INCOME',
             method: 'CASH',
+            dateRaw: now.toISOString(),
             desc: `${formData.category}${formData.note ? ` - ${formData.note}` : ''}`,
             amount: modalMode === 'expense' ? -amount : amount,
             cashier: currentEmployee?.name || 'System',
-            time: new Date().toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
-            date: new Date().toLocaleDateString('th-TH')
+            time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
+            date: now.toLocaleDateString('th-TH')
         };
 
         setTransactions(prev => [newTxn, ...prev]);
@@ -37,9 +76,9 @@ export default function CashTab() {
     };
 
     return (
-        // 🌟 ปลดล็อค max-w
         <div className="flex flex-col h-full gap-5 w-full relative animate-in fade-in duration-300 font-body">
 
+            {/* Modal บันทึกรับ/จ่าย (คงเดิม) */}
             {modalMode && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" onClick={() => setModalMode(null)} />
@@ -55,17 +94,9 @@ export default function CashTab() {
                                     className="w-full p-4 bg-stone-50 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:border-stone-400"
                                 >
                                     {modalMode === 'expense' ? (
-                                        <>
-                                            <option>🧊 น้ำแข็ง</option>
-                                            <option>🥛 นมสด</option>
-                                            <option>🚲 ค่าส่ง</option>
-                                            <option>อื่นๆ</option>
-                                        </>
+                                        <><option>🧊 น้ำแข็ง</option><option>🥛 นมสด</option><option>🚲 ค่าส่ง</option><option>อื่นๆ</option></>
                                     ) : (
-                                        <>
-                                            <option>💵 เงินทอน (แลกแบงก์)</option>
-                                            <option>อื่นๆ</option>
-                                        </>
+                                        <><option>💵 เงินทอน (แลกแบงก์)</option><option>อื่นๆ</option></>
                                     )}
                                 </select>
                             </div>
@@ -82,8 +113,7 @@ export default function CashTab() {
                                 <input
                                     type="number" autoFocus
                                     value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                    className={`w-full p-5 border-2 rounded-[2rem] text-4xl font-black text-center outline-none ${modalMode === 'expense' ? 'border-red-200 bg-red-50 focus:border-red-500 text-red-600' : 'border-emerald-200 bg-emerald-50 focus:border-emerald-500 text-emerald-600'
-                                        }`}
+                                    className={`w-full p-5 border-2 rounded-[2rem] text-4xl font-black text-center outline-none ${modalMode === 'expense' ? 'border-red-200 bg-red-50 focus:border-red-500 text-red-600' : 'border-emerald-200 bg-emerald-50 focus:border-emerald-500 text-emerald-600'}`}
                                     placeholder="0"
                                 />
                             </div>
@@ -112,28 +142,28 @@ export default function CashTab() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 shrink-0">
                 <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col justify-center text-center">
-                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">เงินดึงออก (Cash Out)</p>
-                    <h3 className="text-3xl font-black text-red-500 font-headline">฿{shift.cashOut.toLocaleString()}</h3>
+                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">เงินดึงออก (Cash Out)</p>
+                    <h3 className="text-3xl font-black text-red-500 font-headline">฿{(cashStats.cout || 0).toLocaleString()}</h3>
                 </div>
                 <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col justify-center text-center">
-                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">เงินนำเข้า (Cash In)</p>
-                    <h3 className="text-3xl font-black text-emerald-600 font-headline">฿{shift.cashIn.toLocaleString()}</h3>
+                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">เงินนำเข้า (Cash In)</p>
+                    <h3 className="text-3xl font-black text-emerald-600 font-headline">฿{(cashStats.cin || 0).toLocaleString()}</h3>
                 </div>
-                <div className="bg-stone-800 text-white p-6 rounded-[2.5rem] shadow-xl flex flex-col justify-center text-center relative overflow-hidden">
-                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-xl"></div>
+
+                <div className="bg-stone-800 text-white p-6 rounded-[2.5rem] shadow-xl flex flex-col justify-center text-center relative overflow-hidden group">
+                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-xl transition-all group-hover:bg-white/10 group-hover:scale-150"></div>
                     <div className="flex justify-between items-center mb-2 px-4 relative z-10">
                         <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">เงินสดในลิ้นชัก</p>
                         <span className="text-[9px] font-bold bg-white/10 px-3 py-1 rounded-md text-stone-300">
-                            ตั้งต้น: ฿{shift.startCash.toLocaleString()}
+                            ตั้งต้น: ฿{(cashStats.start || 0).toLocaleString()}
                         </span>
                     </div>
-                    <h3 className={`text-5xl font-black font-headline tracking-tighter relative z-10 ${shift.isOpen ? 'text-amber-200' : 'text-stone-400'}`}>
-                        {shift.isOpen ? `฿${expectedCash.toLocaleString()}` : 'ยังไม่เปิดกะ'}
+                    <h3 className={`text-5xl font-black font-headline tracking-tighter relative z-10 transition-all ${shift?.isOpen ? 'text-amber-200' : 'text-stone-500'}`}>
+                        {shift?.isOpen ? `฿${(cashStats.expected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'ยังไม่เปิดกะ'}
                     </h3>
                 </div>
             </div>
 
-            {/* 🌟 ตารางยืดเต็ม + Sticky */}
             <div className="bg-white rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col flex-1 min-h-0 pb-2">
                 <div className="p-5 border-b bg-stone-50/50 flex justify-between items-center shrink-0">
                     <h3 className="font-black text-sm text-[#861b00] flex items-center gap-2">
@@ -153,13 +183,13 @@ export default function CashTab() {
                         </thead>
                         <tbody className="divide-y divide-stone-100">
                             {cashTransactions.length === 0 ? (
-                                <tr><td colSpan="5" className="p-10 text-center text-stone-300 uppercase font-black text-xs tracking-widest">ยังไม่มีความเคลื่อนไหวของเงินสด</td></tr>
+                                <tr><td colSpan="5" className="p-16 text-center text-stone-300 uppercase font-black text-xs tracking-widest">ยังไม่มีความเคลื่อนไหวของเงินสดในกะนี้</td></tr>
                             ) : (
                                 cashTransactions.map(t => (
                                     <tr key={t.id} className="hover:bg-stone-50/50 transition-colors group">
                                         <td className="p-4 pl-8 text-[11px] font-bold text-stone-500">{t.time}</td>
                                         <td className="p-4">
-                                            <span className="px-3 py-1.5 bg-stone-100 border text-stone-600 rounded-md text-[9px] font-bold uppercase tracking-wider">
+                                            <span className={`px-3 py-1.5 border rounded-md text-[9px] font-bold uppercase tracking-wider ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : t.type === 'INCOME' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : t.type === 'EXPENSE' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-stone-100'}`}>
                                                 {t.type === 'SALE' ? 'ขายสินค้า' : t.type === 'INCOME' ? 'บันทึกรับ' : t.type === 'EXPENSE' ? 'บันทึกจ่าย' : t.type}
                                             </span>
                                         </td>
@@ -168,7 +198,7 @@ export default function CashTab() {
                                             <span className="text-[10px] font-bold bg-stone-100 px-2.5 py-1 rounded text-stone-500">{t.cashier}</span>
                                         </td>
                                         <td className={`p-4 pr-8 text-right font-black text-lg ${t.amount >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                            {t.amount >= 0 ? '+' : ''}฿{Math.abs(t.amount).toLocaleString()}
+                                            {t.amount >= 0 ? '+' : ''}฿{Math.abs(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </td>
                                     </tr>
                                 ))
@@ -177,7 +207,6 @@ export default function CashTab() {
                     </table>
                 </div>
             </div>
-
         </div>
     );
 }

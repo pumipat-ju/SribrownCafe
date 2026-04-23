@@ -128,10 +128,8 @@ export default function MarketingTab() {
         });
     };
 
-    // 🌟 แก้บัคที่ 1: ป้องกันการพังเวลาเปิดโปรโมชันเก่า
     const openPromoModal = (promo = null) => {
         if (promo) {
-            // โหลดข้อมูลเก่า พร้อมใส่ Fallback [] ให้ฟิลด์ที่เคยไม่มี
             setPromoForm({
                 ...promo,
                 targetCategories: promo.targetCategories || [],
@@ -205,6 +203,50 @@ export default function MarketingTab() {
         });
     };
 
+    // 🌟 ฟังก์ชันจัดการสีและไอคอนของ Tier แบบพรีเมียม (จับคำในชื่อ)
+    const getTierStyle = (tierName) => {
+        const name = tierName?.toLowerCase() || '';
+
+        // 💎 ดักจับ Diamond ให้เป็นธีมเพชรสีน้ำเงินพาสเทล พร้อมเปลี่ยนไอคอนเป็นรูปเพชร
+        if (name.includes('diamond') || name.includes('platinum')) return {
+            bg: 'from-blue-100 to-blue-200',
+            text: 'text-blue-700',
+            border: 'border-blue-300',
+            nameColor: 'text-blue-700',
+            icon: 'diamond' // ใช้ไอคอนรูปเพชร
+        };
+        if (name.includes('gold')) return {
+            bg: 'from-yellow-100 via-yellow-200 to-amber-300',
+            text: 'text-amber-700',
+            border: 'border-yellow-300',
+            nameColor: 'text-amber-600',
+            icon: 'workspace_premium'
+        };
+        if (name.includes('silver')) return {
+            bg: 'from-slate-100 to-slate-200',
+            text: 'text-slate-600',
+            border: 'border-slate-300',
+            nameColor: 'text-slate-500',
+            icon: 'workspace_premium'
+        };
+        if (name.includes('bronze')) return {
+            bg: 'from-orange-50 to-orange-100',
+            text: 'text-orange-700',
+            border: 'border-orange-200',
+            nameColor: 'text-[#b5580e]',
+            icon: 'workspace_premium'
+        };
+
+        // สี Default (สีร้าน)
+        return {
+            bg: 'from-[#fdf8f5] to-orange-50',
+            text: 'text-[#861b00]',
+            border: 'border-[#861b00]/20',
+            nameColor: 'text-[#861b00]',
+            icon: 'stars'
+        };
+    };
+
     const safeCategories = Array.isArray(categories) ? categories : [];
     const safeMenuItems = Array.isArray(menuItems) ? menuItems : [];
 
@@ -242,36 +284,53 @@ export default function MarketingTab() {
                                 <span className="material-symbols-outlined text-sm">add</span> เพิ่มระดับ
                             </button>
                         </div>
-                        <div className="flex flex-col gap-2 flex-1 overflow-y-auto no-scrollbar pr-2 pb-4">
-                            {marketing.tiers.map((t, index) => (
-                                <div key={t.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-transparent hover:bg-white hover:border-[#861b00]/20 transition-all group shrink-0">
-                                    <div className="flex items-center gap-4 w-1/4">
-                                        <div className="flex flex-col gap-0.5">
-                                            <button onClick={() => moveTier(index, -1)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-stone-200 text-stone-300 hover:text-[#861b00]"><span className="material-symbols-outlined leading-none text-[18px]">keyboard_arrow_up</span></button>
-                                            <button onClick={() => moveTier(index, 1)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-stone-200 text-stone-300 hover:text-[#861b00]"><span className="material-symbols-outlined leading-none text-[18px]">keyboard_arrow_down</span></button>
+                        <div className="flex flex-col gap-3 flex-1 overflow-y-auto no-scrollbar pr-2 pb-4">
+                            {marketing.tiers.map((t, index) => {
+                                // 🌟 ดึงสีและไอคอนจากฟังก์ชันมาใช้งาน
+                                const tierStyle = getTierStyle(t.name);
+
+                                return (
+                                    <div key={t.id} className="flex items-center justify-between p-4 bg-white rounded-[1.5rem] border border-stone-200 shadow-sm hover:shadow-md hover:border-stone-300 transition-all group shrink-0">
+                                        <div className="flex items-center gap-5 w-[30%]">
+                                            <div className="flex flex-col gap-0.5">
+                                                <button onClick={() => moveTier(index, -1)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-stone-100 text-stone-300 hover:text-[#861b00]"><span className="material-symbols-outlined leading-none text-[18px]">keyboard_arrow_up</span></button>
+                                                <button onClick={() => moveTier(index, 1)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-stone-100 text-stone-300 hover:text-[#861b00]"><span className="material-symbols-outlined leading-none text-[18px]">keyboard_arrow_down</span></button>
+                                            </div>
+
+                                            {/* 🌟 ไอคอน Premium ประจำระดับ (ดึง icon มาแสดงแบบ Dynamic) */}
+                                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tierStyle.bg} flex items-center justify-center shadow-sm border ${tierStyle.border} shrink-0`}>
+                                                <span className={`material-symbols-outlined text-[26px] ${tierStyle.text}`}>
+                                                    {tierStyle.icon}
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                {/* 🌟 สีชื่อระดับสอดคล้องกับธีม */}
+                                                <p className={`text-base font-black uppercase tracking-tight ${tierStyle.nameColor}`}>{t.name}</p>
+                                                <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mt-0.5">Level {index + 1}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-black uppercase text-[#861b00] tracking-tight">{t.name}</p>
-                                            <p className="text-[9px] text-stone-400 font-bold">Level {index + 1}</p>
+
+                                        <div className="flex-1 px-4">
+                                            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-stone-50 rounded-full border border-stone-100">
+                                                <span className="material-symbols-outlined text-[15px] text-stone-400">payments</span>
+                                                <p className="text-[11px] font-bold text-stone-500">ยอดสะสม: <span className="text-stone-800 font-black">฿{fMoney(t.minSpent)} {t.maxSpent ? `- ฿${fMoney(t.maxSpent)}` : 'ขึ้นไป'}</span></p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-8">
+                                            <div className="text-right">
+                                                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">ส่วนลดบิล</p>
+                                                <p className={`text-2xl font-black ${tierStyle.nameColor}`}>{t.discountPct}%</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setTierModal({ isOpen: true, data: t })} className="w-9 h-9 rounded-full bg-stone-50 border border-stone-200 text-stone-400 hover:text-emerald-500 hover:bg-white flex items-center justify-center transition-all shadow-sm active:scale-90"><span className="material-symbols-outlined text-[18px] leading-none">edit</span></button>
+                                                <button onClick={() => setConfirmDelete({ isOpen: true, type: 'tier', id: t.id, title: t.name })} className="w-9 h-9 rounded-full bg-stone-50 border border-stone-200 text-stone-300 hover:text-red-500 hover:bg-white flex items-center justify-center transition-all shadow-sm active:scale-90"><span className="material-symbols-outlined text-[18px] leading-none">delete</span></button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex-1 px-4">
-                                        <div className="inline-flex items-center gap-2 px-4 py-1 bg-white rounded-full border border-stone-100">
-                                            <p className="text-[10px] font-bold text-stone-500">ยอดสะสม: <span className="text-stone-900 font-black">฿{fMoney(t.minSpent)} {t.maxSpent ? `- ฿${fMoney(t.maxSpent)}` : 'ขึ้นไป'}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-8">
-                                        <div className="text-right">
-                                            <p className="text-[9px] font-bold text-stone-400 uppercase">ลดบิล</p>
-                                            <p className="text-xl font-black text-stone-800">{t.discountPct}%</p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setTierModal({ isOpen: true, data: t })} className="w-8 h-8 rounded-full bg-white border border-stone-200 text-stone-400 hover:text-emerald-500 flex items-center justify-center transition-all active:scale-90"><span className="material-symbols-outlined text-[16px] leading-none">edit</span></button>
-                                            <button onClick={() => setConfirmDelete({ isOpen: true, type: 'tier', id: t.id, title: t.name })} className="w-8 h-8 rounded-full bg-white border border-stone-200 text-stone-300 hover:text-red-500 flex items-center justify-center transition-all active:scale-90"><span className="material-symbols-outlined text-[16px] leading-none">delete</span></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
                 )}
@@ -363,7 +422,7 @@ export default function MarketingTab() {
                         <button type="button" onClick={() => setTierModal({ isOpen: false, data: null })} className="absolute top-6 right-6 text-stone-400 hover:text-stone-600 flex items-center justify-center w-8 h-8 rounded-full hover:bg-stone-100 transition-colors"><span className="material-symbols-outlined leading-none">close</span></button>
                         <h3 className="font-black text-2xl mb-6 text-[#861b00] font-headline">{tierModal.data ? 'แก้ไขระดับ' : 'เพิ่มระดับใหม่'}</h3>
                         <div className="space-y-5 mb-8">
-                            <div><label className="text-xs font-bold text-stone-500 block mb-2">ชื่อระดับ</label><input name="name" defaultValue={tierModal.data?.name} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold text-stone-700 outline-none focus:border-[#861b00] transition-all" required placeholder="เช่น Gold, Platinum" /></div>
+                            <div><label className="text-xs font-bold text-stone-500 block mb-2">ชื่อระดับ</label><input name="name" defaultValue={tierModal.data?.name} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold text-stone-700 outline-none focus:border-[#861b00] transition-all" required placeholder="เช่น Gold, Diamond" /></div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="text-xs font-bold text-stone-500 block mb-2">ยอดสะสมขั้นต่ำ (฿)</label><input name="minSpent" type="number" defaultValue={tierModal.data?.minSpent} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold text-stone-700 outline-none focus:border-[#861b00]" required placeholder="0" /></div>
                                 <div><label className="text-xs font-bold text-stone-500 block mb-2">สูงสุด (ปล่อยว่างได้)</label><input name="maxSpent" type="number" defaultValue={tierModal.data?.maxSpent} className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold text-stone-700 outline-none focus:border-[#861b00]" placeholder="99999" /></div>
@@ -382,16 +441,20 @@ export default function MarketingTab() {
                     <form onSubmit={savePromo} className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl animate-in zoom-in-95 relative z-10">
                         <button type="button" onClick={() => setPromoModal({ isOpen: false, data: null })} className="absolute top-6 right-6 text-stone-400 hover:text-stone-600 flex items-center justify-center w-8 h-8 rounded-full hover:bg-stone-100 transition-colors"><span className="material-symbols-outlined leading-none">close</span></button>
 
-                        <h3 className="font-black text-2xl mb-6 text-emerald-600 font-headline">{promoModal.data ? 'แก้ไขโปรโมชัน' : 'สร้างโปรโมชัน'}</h3>
+                        {/* Step 1: เพิ่ม Icon ที่ Header */}
+                        <h3 className="font-black text-2xl mb-6 text-emerald-600 font-headline flex items-center gap-2">
+                            <span className="material-symbols-outlined text-3xl">celebration</span>
+                            {promoModal.data ? 'แก้ไขโปรโมชัน' : 'สร้างโปรโมชัน'}
+                        </h3>
 
                         <div className="space-y-6 mb-8">
-                            {/* ชื่อโปรโมชัน */}
+                            {/* Step 2: เพิ่มมิติให้ช่อง Input */}
                             <div>
                                 <label className="text-xs font-bold text-stone-500 block mb-2">ชื่อโปร</label>
                                 <input
                                     value={promoForm.name}
                                     onChange={e => setPromoForm({ ...promoForm, name: e.target.value })}
-                                    className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:border-emerald-500 text-stone-800"
+                                    className="w-full p-3.5 bg-stone-50 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:bg-white focus:border-emerald-500 text-stone-800 transition-colors"
                                     required placeholder="เช่น แก้วที่ 2 ลด 50%"
                                 />
                             </div>
@@ -427,7 +490,6 @@ export default function MarketingTab() {
                                         <div className="flex flex-wrap gap-2">
                                             {safeMenuItems
                                                 .filter(p => {
-                                                    // ตรวจสอบทั้ง category และ category_id (เผื่อ DB ใช้คำไหน)
                                                     const itemCat = p.category || p.category_id;
                                                     return promoForm.targetCategories.includes(itemCat) ||
                                                         promoForm.targetCategories.includes(Number(itemCat)) ||
@@ -448,17 +510,18 @@ export default function MarketingTab() {
                                 )}
                             </div>
 
-                            {/* เงื่อนไขการซื้อ & ส่วนลด */}
                             <div className="grid grid-cols-2 gap-4">
+                                {/* ช่องซื้อขั้นต่ำ */}
                                 <div>
                                     <label className="text-xs font-bold text-stone-500 block mb-2">ซื้อขั้นต่ำ (ชิ้น)</label>
                                     <input
                                         type="number" min="1"
                                         value={promoForm.minQty}
                                         onChange={e => setPromoForm({ ...promoForm, minQty: e.target.value })}
-                                        className="w-full p-3.5 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:border-emerald-500 text-stone-800" required
+                                        className="w-full p-3.5 bg-stone-50 border-2 border-stone-200 rounded-2xl font-bold outline-none focus:bg-white focus:border-emerald-500 text-stone-800 transition-colors" required
                                     />
                                 </div>
+                                {/* Step 3: ตะโกนบอกส่วนลด (Focal Point) */}
                                 <div className="relative">
                                     <label className="text-xs font-bold text-emerald-600 block mb-2">ลดราคา <span className="text-red-500">*</span></label>
                                     <div className="relative flex">
@@ -466,7 +529,7 @@ export default function MarketingTab() {
                                             type="number" required
                                             value={promoForm.discountValue}
                                             onChange={e => setPromoForm({ ...promoForm, discountValue: e.target.value })}
-                                            className="w-full p-3.5 border-2 border-emerald-500 bg-emerald-50 rounded-2xl font-black text-emerald-600 outline-none focus:ring-4 focus:ring-emerald-500/20 pr-20"
+                                            className="w-full p-3.5 bg-emerald-50 border-2 border-emerald-400 rounded-2xl font-black text-xl text-emerald-600 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 pr-20 transition-colors"
                                         />
                                         <div className="absolute right-2 top-2 bottom-2 bg-white rounded-xl p-1 flex gap-1 shadow-sm border border-emerald-100">
                                             <button type="button" onClick={() => setPromoForm({ ...promoForm, discountType: 'amt' })} className={`px-2.5 rounded-lg text-[11px] font-black transition-all ${promoForm.discountType === 'amt' ? 'bg-emerald-500 text-white' : 'text-stone-400 hover:bg-stone-50'}`}>฿</button>
@@ -476,19 +539,18 @@ export default function MarketingTab() {
                                 </div>
                             </div>
 
-                            {/* วันที่ และ เวลา (Happy Hour) */}
+                            {/* Step 4: Card-in-Card แบ่งโซนวันที่และเวลา */}
                             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">เริ่มวันที่</label><input type="date" value={promoForm.startDate} onChange={e => setPromoForm({ ...promoForm, startDate: e.target.value })} className="w-full p-3 border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500" /></div>
-                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">ถึงวันที่</label><input type="date" value={promoForm.endDate} onChange={e => setPromoForm({ ...promoForm, endDate: e.target.value })} className="w-full p-3 border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500" /></div>
+                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">เริ่มวันที่</label><input type="date" value={promoForm.startDate} onChange={e => setPromoForm({ ...promoForm, startDate: e.target.value })} className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500 transition-colors" /></div>
+                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">ถึงวันที่</label><input type="date" value={promoForm.endDate} onChange={e => setPromoForm({ ...promoForm, endDate: e.target.value })} className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500 transition-colors" /></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">เริ่มเวลา</label><input type="time" value={promoForm.startTime} onChange={e => setPromoForm({ ...promoForm, startTime: e.target.value })} className="w-full p-3 border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500" /></div>
-                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">ถึงเวลา</label><input type="time" value={promoForm.endTime} onChange={e => setPromoForm({ ...promoForm, endTime: e.target.value })} className="w-full p-3 border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500" /></div>
+                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">เริ่มเวลา</label><input type="time" value={promoForm.startTime} onChange={e => setPromoForm({ ...promoForm, startTime: e.target.value })} className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500 transition-colors" /></div>
+                                    <div><label className="text-[10px] font-bold text-stone-400 block mb-1">ถึงเวลา</label><input type="time" value={promoForm.endTime} onChange={e => setPromoForm({ ...promoForm, endTime: e.target.value })} className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-700 outline-none focus:border-emerald-500 transition-colors" /></div>
                                 </div>
                                 <p className="text-[9px] text-stone-400 font-bold">* หากต้องการทำเป็น Happy Hour ให้ตั้งเวลาเริ่มและสิ้นสุด</p>
 
-                                {/* เลือกวันในสัปดาห์ */}
                                 <div className="pt-2">
                                     <label className="text-[10px] font-bold text-stone-400 block mb-2">วันในสัปดาห์ที่ร่วมรายการ</label>
                                     <div className="flex justify-between gap-1">
@@ -505,7 +567,6 @@ export default function MarketingTab() {
                                 </div>
                             </div>
 
-                            {/* สิทธิ์ใช้งาน */}
                             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 flex items-center justify-between">
                                 <label className="text-xs font-bold text-stone-800">สิทธิ์ใช้งาน</label>
                                 <div className="flex gap-4">
@@ -521,7 +582,10 @@ export default function MarketingTab() {
                             </div>
 
                         </div>
-                        <button type="submit" className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-lg">บันทึก</button>
+                        {/* Step 5: ปุ่มบันทึกแบบลอยตัว */}
+                        <button type="submit" className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl shadow-emerald-500/30 active:scale-95 transition-all text-lg">
+                            บันทึกโปรโมชัน
+                        </button>
                     </form>
                 </div>
             )}

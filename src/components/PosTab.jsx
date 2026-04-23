@@ -1,16 +1,12 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
 import CheckoutModal from './CheckoutModal';
-import logo from '/sribrown logo (brown).jpg';
 
-export default function PosTab() {
-    const { categories, menuItems, optionGroups, cart, setCart, shift, setShift } = useContext(AppContext);
-
+export default function PosTab({ viewMode }) {
+    const { categories, menuItems, optionGroups, cart, setCart } = useContext(AppContext);
     const [activeCategory, setActiveCategory] = useState(categories[0]?.id || '');
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-
-    // State สำหรับ Modal เลือกสินค้า
     const [selectedItem, setSelectedItem] = useState(null);
     const [tempOptions, setTempOptions] = useState({});
     const [tempQty, setTempQty] = useState(1);
@@ -23,44 +19,26 @@ export default function PosTab() {
 
     const handleItemClick = (item) => {
         const itemOptions = optionGroups.filter(og => og.applyTo.includes(item.cat));
-        setSelectedItem(item);
-        setTempQty(1);
-        setTempNote('');
-
+        setSelectedItem(item); setTempQty(1); setTempNote('');
         if (itemOptions.length > 0) {
             const initial = {};
             itemOptions.forEach(og => {
-                // 🌟 1. ล็อค Default ให้หาตัวเลือกที่ชื่อ "เย็น" ก่อนเสมอ
-                let defaultOption = og.choices.find(c => c.n === 'เย็น');
-
-                // 🌟 2. ถ้าในกลุ่มนั้นไม่มีคำว่า "เย็น" ให้หาตัวที่ราคา +0 บาท เป็น Default
-                if (!defaultOption) {
-                    defaultOption = og.choices.find(c => c.p === 0) || og.choices[0];
-                }
-
-                initial[og.id] = defaultOption;
+                let def = og.choices.find(c => c.n === 'เย็น') || og.choices.find(c => c.p === 0) || og.choices[0];
+                initial[og.id] = def;
             });
             setTempOptions(initial);
-        } else {
-            setTempOptions({});
-        }
+        } else { setTempOptions({}); }
     };
 
     const addToCart = (item, options, qty, note) => {
         const optionValues = Object.values(options).map(o => o.n);
         if (note) optionValues.push(`หมายเหตุ: ${note}`);
         const optionText = optionValues.join(', ');
-
         const cartKey = `${item.id}-${optionText}`;
-        const extraPrice = Object.values(options).reduce((s, o) => s + (o.p || 0), 0);
-        const finalPrice = item.price + extraPrice;
-
+        const finalPrice = item.price + Object.values(options).reduce((s, o) => s + (o.p || 0), 0);
         const existing = cart.find(c => c.cartKey === cartKey);
-        if (existing) {
-            setCart(cart.map(c => c.cartKey === cartKey ? { ...c, qty: c.qty + qty } : c));
-        } else {
-            setCart([...cart, { ...item, cartKey, options: optionText, price: finalPrice, qty }]);
-        }
+        if (existing) { setCart(cart.map(c => c.cartKey === cartKey ? { ...c, qty: c.qty + qty } : c)); }
+        else { setCart([...cart, { ...item, cartKey, options: optionText, price: finalPrice, qty }]); }
         setSelectedItem(null);
     };
 
@@ -87,25 +65,70 @@ export default function PosTab() {
     return (
         <div className="flex flex-col h-full relative w-full font-body">
 
-            {/* ตะกร้าแบบลอย (Floating Cart Button) */}
+            {/* 🛒 Floating Cart Button */}
             <button
                 onClick={() => setIsCartOpen(true)}
-                className="fixed bottom-8 right-8 z-40 bg-[#861b00] text-white px-6 py-4 rounded-[2rem] shadow-xl flex items-center gap-4 border-4 border-white hover:scale-105 transition-transform"
+                className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 z-40 bg-[#861b00] text-white px-5 lg:px-6 py-3.5 lg:py-4 rounded-[2rem] shadow-xl flex items-center gap-3 lg:gap-4 border-4 border-white hover:scale-105 transition-transform"
             >
                 <div className="relative">
-                    <span className="material-symbols-outlined text-2xl">shopping_basket</span>
+                    <span className="material-symbols-outlined text-xl lg:text-2xl">shopping_basket</span>
                     <span className="absolute -top-2 -right-3 bg-emerald-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
                         {cart.reduce((s, c) => s + c.qty, 0)}
                     </span>
                 </div>
-                <span className="font-black text-xl border-l border-white/30 pl-4">฿{subtotal.toLocaleString()}</span>
+                <span className="font-black text-lg lg:text-xl border-l border-white/30 pl-3 lg:pl-4">฿{subtotal.toLocaleString()}</span>
             </button>
+
+            {/* 🗂️ Menu Grid */}
+            <div className="w-full bg-white p-4 lg:p-6 rounded-[2.5rem] border border-stone-200 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden mt-2">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 pb-2 border-b border-stone-100 shrink-0">
+                    {categories.map(c => (
+                        <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 rounded-full text-xs font-bold transition-all ${activeCategory === c.id ? 'bg-[#861b00] text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}`}>{c.name}</button>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 lg:gap-4 content-start overflow-y-auto no-scrollbar flex-1 pb-28 px-1 pt-1">
+                    {menuItems.filter(m => m.cat === activeCategory).map(item => {
+                        const qty = cart.filter(c => c.id === item.id).reduce((s, c) => s + c.qty, 0);
+                        return (
+                            <button key={item.id} onClick={() => handleItemClick(item)} className="bg-white rounded-[1.5rem] p-2 lg:p-2.5 border border-stone-100 shadow-sm hover:shadow-[0_12px_24px_-8px_rgba(134,27,0,0.15)] hover:border-amber-300 transition-all flex flex-col active:scale-95 group text-left relative overflow-hidden">
+                                {qty > 0 && <div className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full shadow-md border-2 border-white z-10 animate-in zoom-in">{qty}</div>}
+
+                                {/* Square Image/Color Box */}
+                                <div className={`w-full aspect-square rounded-[1rem] mb-2 flex items-center justify-center overflow-hidden relative transition-colors ${(!item.image || viewMode === 'color') ? (item.color || 'bg-stone-200') : 'bg-stone-50'}`}>
+                                    {(viewMode === 'image' && item.image) ? (
+                                        <img src={item.image} alt={item.name_th} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                                    ) : (
+                                        /* 🌟 เปลี่ยนจากตัวย่อ 1 ตัวอักษร เป็นชื่อเต็มๆ พร้อมจำกัดไม่ให้ล้นกล่อง */
+                                        <span className="font-black text-sm lg:text-base text-black/20 uppercase tracking-tight group-hover:scale-110 transition-transform duration-300 text-center px-3 leading-snug line-clamp-3">
+                                            {item.name_th || item.name || '?'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Title and Price in same line */}
+                                <div className="px-1 flex-1 flex flex-col justify-end w-full">
+                                    <div className="flex justify-between items-start gap-1 w-full mt-1">
+                                        <div className="flex flex-col flex-1 min-w-0 pr-1">
+                                            <h4 className="font-bold text-stone-800 text-[12px] lg:text-[13px] leading-tight truncate group-hover:text-[#861b00] transition-colors">{item.name_th || item.name}</h4>
+                                            {item.name_en && <p className="text-[9px] lg:text-[10px] font-medium text-stone-400 mt-0.5 truncate uppercase tracking-tight">{item.name_en}</p>}
+                                        </div>
+                                        <div className="shrink-0 pt-0.5">
+                                            <span className="font-black text-[#861b00] text-[13px] lg:text-[14px] group-hover:text-amber-600 transition-colors">฿{item.price.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
 
             {/* หน้าต่างตะกร้า (Cart Drawer) */}
             {isCartOpen && (
                 <>
                     <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 transition-opacity duration-300" onClick={() => setIsCartOpen(false)} />
-                    <div className="fixed top-4 right-4 bottom-4 w-full max-w-[420px] bg-white z-50 rounded-[2.5rem] shadow-2xl p-6 flex flex-col animate-in slide-in-from-right duration-300">
+                    <div className="fixed top-4 right-4 bottom-4 w-full max-w-[380px] lg:max-w-[420px] bg-white z-50 rounded-[2.5rem] shadow-2xl p-5 lg:p-6 flex flex-col animate-in slide-in-from-right duration-300">
 
                         <div className="flex justify-between items-center mb-6 pb-4 border-b border-stone-100 shrink-0">
                             <div>
@@ -208,12 +231,11 @@ export default function PosTab() {
                 </>
             )}
 
-            {/* 🔴🌟 Options Modal (ปรับปรุงเพื่อให้เนื้อหาไม่ Scroll และพอดีจอ) */}
+            {/* 🔴🌟 Options Modal */}
             {selectedItem && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-stone-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2rem] p-4 sm:p-6 max-w-[320px] sm:max-w-md w-full relative z-10 animate-in zoom-in-95 duration-200 flex flex-col">
+                    <div className="bg-white rounded-[2rem] p-4 sm:p-6 max-w-[320px] sm:max-w-md w-full relative z-10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
 
-                        {/* ส่วนหัว: ชื่อเมนู + ปุ่มปิด */}
                         <div className="flex justify-between items-start mb-4 shrink-0 border-b border-stone-50 pb-2">
                             <div>
                                 <h3 className="font-black text-2xl text-[#861b00] leading-tight font-headline">
@@ -226,29 +248,23 @@ export default function PosTab() {
                             </button>
                         </div>
 
-                        {/* ส่วนเนื้อหา (รวม Option และ Note ไว้ด้วยกัน ให้มันบีบตัวพอดีจอ) */}
-                        <div className="flex flex-col space-y-4 pb-2">
-
-                            {/* ดึง Option Groups เฉพาะที่เกี่ยวกับสินค้านี้มาโชว์ */}
+                        <div className="flex flex-col space-y-4 pb-2 overflow-y-auto no-scrollbar">
                             {optionGroups?.filter(og => og.applyTo.includes(selectedItem.cat)).map(group => (
                                 <div key={group.id}>
                                     <label className="text-[10px] font-bold text-stone-400 mb-2 block tracking-widest">{group.name}</label>
                                     <div className="grid grid-cols-3 gap-1.5">
                                         {group.choices.map((choice, idx) => {
-                                            // เช็คว่าปุ่มนี้ถูกเลือกอยู่หรือเปล่า
                                             const isSelected = tempOptions[group.id]?.n === choice.n;
-
                                             return (
                                                 <button
                                                     key={idx}
                                                     onClick={() => setTempOptions({ ...tempOptions, [group.id]: choice })}
                                                     className={`py-2 px-1 text-[10px] sm:text-[11px] font-bold rounded-lg border-2 transition-all flex flex-col items-center justify-center active:scale-95 ${isSelected
-                                                            ? 'bg-[#861b00]/10 text-[#861b00] border-[#861b00]'
-                                                            : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300 hover:bg-stone-50'
+                                                        ? 'bg-[#861b00]/10 text-[#861b00] border-[#861b00]'
+                                                        : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300 hover:bg-stone-50'
                                                         }`}
                                                 >
                                                     <span className="text-center line-clamp-1">{choice.n}</span>
-                                                    {/* โชว์ราคาบวกลบ ถ้ามี (เช่น -20฿ หรือ +20฿) */}
                                                     {choice.p !== 0 && (
                                                         <span className={`text-[9px] mt-0.5 ${isSelected ? 'text-[#861b00]' : 'text-stone-400'}`}>
                                                             ({choice.p > 0 ? '+' : ''}{choice.p}฿)
@@ -261,8 +277,7 @@ export default function PosTab() {
                                 </div>
                             ))}
 
-                            {/* ช่องกรอกหมายเหตุและจำนวนสินค้า ไว้บรรทัดเดียวกัน (ถ้าจอพอ) หรือซ้อนกันแบบประหยัดพื้นที่ */}
-                            <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex flex-col sm:flex-row gap-3 mt-2">
                                 <div className="flex-1">
                                     <label className="text-[10px] font-bold text-stone-400 mb-1 block tracking-widest">หมายเหตุ</label>
                                     <input
@@ -282,12 +297,9 @@ export default function PosTab() {
                                     </div>
                                 </div>
                             </div>
-
                         </div>
 
-                        {/* ส่วนท้าย (Footer) แบบประหยัดพื้นที่ */}
                         <div className="pt-4 border-t border-stone-200 border-dashed shrink-0 flex flex-col gap-3 mt-1">
-                            {/* บรรทัดราคา */}
                             <div className="flex justify-between items-end px-1">
                                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Total Price</span>
                                 <span className="text-3xl font-black text-[#861b00] leading-none tracking-tighter">
@@ -295,7 +307,6 @@ export default function PosTab() {
                                 </span>
                             </div>
 
-                            {/* ปุ่ม Add to Cart */}
                             <button
                                 onClick={() => addToCart(selectedItem, tempOptions, tempQty, tempNote)}
                                 className="w-full py-3 bg-[#861b00] hover:bg-[#6a1500] text-white text-[14px] font-black rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -307,57 +318,6 @@ export default function PosTab() {
                     </div>
                 </div>
             )}
-
-            {/* 🟡 Main Menu Grid */}
-            <div className="w-full bg-white p-5 rounded-[2.5rem] border border-stone-200 shadow-sm flex flex-col h-full overflow-hidden">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-2 border-b border-stone-100 shrink-0">
-                    {categories.map(c => (
-                        <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`shrink-0 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${activeCategory === c.id ? 'bg-stone-800 text-white shadow-md' : 'bg-white text-stone-500 border hover:bg-stone-50'}`}>{c.name}</button>
-                    ))}
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 content-start overflow-y-auto no-scrollbar flex-1 pb-24 px-2">
-                    {menuItems.filter(m => m.cat === activeCategory).map(item => {
-                        const qty = cart.filter(c => c.id === item.id).reduce((s, c) => s + c.qty, 0);
-
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => handleItemClick(item)}
-                                className="bg-white p-4 rounded-[1.5rem] border border-stone-100 shadow-sm flex flex-col items-center justify-center gap-2 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_15px_30px_-5px_rgba(134,27,0,0.15)] hover:border-[#861b00]/30 active:scale-95 group relative overflow-hidden min-h-[140px]"
-                            >
-                                {qty > 0 && (
-                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full shadow-md border-2 border-white z-10 animate-in zoom-in duration-200">
-                                        {qty}
-                                    </div>
-                                )}
-
-                                <div className={`absolute top-0 left-0 w-full h-1.5 ${item.color || 'bg-stone-200'} group-hover:h-2 transition-all`}></div>
-
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-inner transition-transform duration-300 group-hover:scale-110 mt-2 ${item.color || 'bg-stone-100'}`}>
-                                    <span className="material-symbols-outlined text-stone-600 text-[22px]">
-                                        {item.cat === 'c1' ? 'coffee' : item.cat === 'c2' ? 'emoji_food_beverage' : 'bakery_dining'}
-                                    </span>
-                                </div>
-
-                                {/* แสดง Grid เมนู 2 ภาษา */}
-                                <div className="text-center mt-2 w-full px-1">
-                                    <h3 className="font-bold text-stone-700 text-[13px] leading-tight group-hover:text-[#861b00] transition-colors line-clamp-1">
-                                        {item.name_th || item.name}
-                                    </h3>
-                                    {item.name_en && (
-                                        <p className="text-[10px] text-stone-400 font-medium italic line-clamp-1 uppercase tracking-tight mt-0.5">
-                                            {item.name_en}
-                                        </p>
-                                    )}
-                                    <p className="font-black text-[#861b00] mt-1.5 text-sm group-hover:text-amber-600 transition-colors">
-                                        ฿{item.price}
-                                    </p>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
 
             {/* 🟣 Checkout Modal */}
             {isCheckoutOpen && (
