@@ -1,16 +1,13 @@
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api.js';
 
 export default function CashTab() {
-    // 🛡️ ดึงข้อมูลมาอย่างระมัดระวัง
-    const { shift, setShift, transactions, setTransactions, currentEmployee } = useContext(AppContext);
-
+    const { shift, setShift, transactions, setTransactions, currentEmployee, generateBillId } = useContext(AppContext);
     const [modalMode, setModalMode] = useState(null);
     const [formData, setFormData] = useState({ category: 'อื่นๆ', note: '', amount: '' });
 
-    // ==========================================
     // 🌟 1. ระบบคำนวณแบบ "Bulletproof" (กันเด้ง 100%)
-    // ==========================================
     const cashStats = useMemo(() => {
         // ใช้ค่า Default เป็น 0 เสมอถ้าไม่มีข้อมูล
         const start = parseFloat(shift?.startCash || 0);
@@ -28,7 +25,7 @@ export default function CashTab() {
                 t.dateRaw &&
                 new Date(t.dateRaw) > new Date(shift.startTime) &&
                 t.type === 'SALE' &&
-                (t.method === 'CASH' || t.paymentMethod === 'CASH' || t.method === 'cash')
+                (t.method === 'CASH' || t.paymentMethod === 'CASH' || t.method === 'CASH')
             )
             .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
@@ -37,30 +34,34 @@ export default function CashTab() {
         return { start, sales: currentSales, cin, cout, expected };
     }, [shift, transactions]);
 
-    // กรองตารางให้ปลอดภัย
+    // 🌟 กรองรายการ "เงินสด" ทั้งหมดที่เกิดขึ้นในกะนี้
     const cashTransactions = (transactions || []).filter(t => {
-        const isCash = t.method === 'CASH' || t.paymentMethod === 'CASH' || t.method === 'cash';
-        const isCurrentShift = shift?.startTime && t.dateRaw && new Date(t.dateRaw) > new Date(shift.startTime);
-        return isCash && isCurrentShift;
-    });
+        const method = String(t.method || t.paymentMethod || '').toUpperCase();
+        const isCash = method === 'CASH' || method === 'เงินสด';
 
-    const handleSave = () => {
+        // สำคัญ: ต้องเทียบกับเวลาเริ่มกะ (shift.startTime)
+        const timeRef = t.date_raw || t.dateRaw || t.created_at;
+        const isCurrentShift = shift?.startTime && timeRef && new Date(timeRef) > new Date(shift.startTime);
+
+        return isCash && isCurrentShift;
+    }).sort((a, b) => new Date(b.date_raw || b.created_at) - new Date(a.date_raw || a.created_at));
+
+    // 🌟 เปลี่ยนเป็น async function เพื่อรองรับการเซฟลง DB
+    const handleSave = async () => {
         const amount = parseFloat(formData.amount);
         if (!amount || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้องครับ');
         if (!shift?.isOpen) return alert('กรุณาเปิดกะก่อนบันทึกรายการครับ');
 
         const now = new Date();
+        const txnType = modalMode === 'expense' ? 'EXPENSE' : 'INCOME';
 
-        // อัปเดต State shift แบบปลอดภัย
-        setShift(prev => ({
-            ...prev,
-            cashIn: modalMode === 'income' ? (prev.cashIn || 0) + amount : (prev.cashIn || 0),
-            cashOut: modalMode === 'expense' ? (prev.cashOut || 0) + amount : (prev.cashOut || 0),
-        }));
+        // 🌟 1. เจน ID บิลตามฟอร์แมตใหม่ (เช่น EXP-240426-001)
+        const newBillId = generateBillId(txnType, transactions);
 
         const newTxn = {
-            id: Date.now(),
-            type: modalMode === 'expense' ? 'EXPENSE' : 'INCOME',
+            bill_id: newBillId,
+            date_raw: now.toISOString(),
+            type: txnType,
             method: 'CASH',
             dateRaw: now.toISOString(),
             desc: `${formData.category}${formData.note ? ` - ${formData.note}` : ''}`,
@@ -70,10 +71,67 @@ export default function CashTab() {
             date: now.toLocaleDateString('th-TH')
         };
 
+        // 🌟 2. บันทึกลง Database ทันที (ป้องกันรีเฟรชแล้วหาย)
+        try {
+            await fetchJSON('/transactions/', {
+                method: 'POST',
+                body: JSON.stringify(newTxn)
+            });
+        } catch (e) {
+            console.error("Failed to save transaction to DB:", e);
+            // ถึงเซฟ DB พลาด แต่เรายังอัปเดตหน้าจอให้พนักงานทำงานต่อได้
+        }
+
+        // 🌟 3. อัปเดต State ต่างๆ ในเครื่อง
+        setShift(prev => ({
+            ...prev,
+            cashIn: modalMode === 'income' ? (prev.cashIn || 0) + amount : (prev.cashIn || 0),
+            cashOut: modalMode === 'expense' ? (prev.cashOut || 0) + amount : (prev.cashOut || 0),
+        }));
+
         setTransactions(prev => [newTxn, ...prev]);
         setFormData({ category: 'อื่นๆ', note: '', amount: '' });
         setModalMode(null);
     };
+
+    // เพิ่มฟังก์ชันนี้ไว้ใน CashTab() ก่อนส่วน return
+    const getCashStats = () => {
+        const startCash = parseFloat(shift?.startCash || 0);
+
+        // 1. กรองรายการที่เป็นเงินสดในกะนี้ (รวมทั้ง SALE, TOPUP, INCOME, EXPENSE)
+        const currentShiftCashTxns = (transactions || []).filter(t => {
+            // เช็คว่าเป็นเงินสด (รองรับทั้ง CASH หรือ paymentMethod)
+            const method = (t.method || t.paymentMethod || '').toUpperCase();
+            const isCash = method === 'CASH';
+
+            // เช็คเวลา (ต้องตรงกับที่บันทึกลง DB คือ date_raw หรือ dateRaw)
+            const timeRef = t.date_raw || t.dateRaw || t.created_at;
+            const isCurrentShift = timeRef && new Date(timeRef) > new Date(shift?.startTime);
+
+            return isCash && isCurrentShift;
+        });
+
+        let totalIn = 0;  // รวมเงินเข้า (Sale สด + Topup สด + Income)
+        let totalOut = 0; // รวมเงินออก (Expense)
+
+        currentShiftCashTxns.forEach(t => {
+            const amt = parseFloat(t.amount || 0);
+            if (t.type === 'SALE' || t.type === 'TOPUP' || t.type === 'INCOME') {
+                totalIn += Math.abs(amt);
+            } else if (t.type === 'EXPENSE') {
+                totalOut += Math.abs(amt);
+            }
+        });
+
+        return {
+            totalIn,
+            totalOut,
+            balance: startCash + totalIn - totalOut,
+            startCash
+        };
+    };
+
+    const stats = getCashStats();
 
     return (
         <div className="flex flex-col h-full gap-5 w-full relative animate-in fade-in duration-300 font-body">
@@ -140,68 +198,127 @@ export default function CashTab() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 shrink-0">
-                <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col justify-center text-center">
-                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">เงินดึงออก (Cash Out)</p>
-                    <h3 className="text-3xl font-black text-red-500 font-headline">฿{(cashStats.cout || 0).toLocaleString()}</h3>
-                </div>
-                <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col justify-center text-center">
-                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">เงินนำเข้า (Cash In)</p>
-                    <h3 className="text-3xl font-black text-emerald-600 font-headline">฿{(cashStats.cin || 0).toLocaleString()}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {/* กล่องเงินเข้า: รวมยอดขายสด + เติมเงินสด + บันทึกรับ */}
+                <div className="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm text-center">
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">เงินนำเข้า (CASH IN)</p>
+                    <p className="text-3xl font-black text-emerald-500">฿{stats.totalIn.toLocaleString()}</p>
                 </div>
 
-                <div className="bg-stone-800 text-white p-6 rounded-[2.5rem] shadow-xl flex flex-col justify-center text-center relative overflow-hidden group">
-                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-xl transition-all group-hover:bg-white/10 group-hover:scale-150"></div>
-                    <div className="flex justify-between items-center mb-2 px-4 relative z-10">
-                        <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">เงินสดในลิ้นชัก</p>
-                        <span className="text-[9px] font-bold bg-white/10 px-3 py-1 rounded-md text-stone-300">
-                            ตั้งต้น: ฿{(cashStats.start || 0).toLocaleString()}
-                        </span>
+                {/* กล่องเงินออก: บันทึกจ่าย */}
+                <div className="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm text-center">
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">เงินดึงออก (CASH OUT)</p>
+                    <p className="text-3xl font-black text-red-500">฿{stats.totalOut.toLocaleString()}</p>
+                </div>
+
+                {/* กล่องเงินสดสุทธิในเก๊ะ */}
+                <div className="animate-sribrown p-6 rounded-[2rem] shadow-xl text-center text-white relative overflow-hidden">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">เงินสดในลิ้นชัก</p>
+                    <p className="text-4xl font-black">฿{stats.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <div className="mt-2 text-[9px] font-bold bg-black/20 inline-block px-3 py-1 rounded-full">
+                        ตั้งต้น: ฿{stats.startCash.toLocaleString()}
                     </div>
-                    <h3 className={`text-5xl font-black font-headline tracking-tighter relative z-10 transition-all ${shift?.isOpen ? 'text-amber-200' : 'text-stone-500'}`}>
-                        {shift?.isOpen ? `฿${(cashStats.expected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'ยังไม่เปิดกะ'}
-                    </h3>
                 </div>
             </div>
 
-            <div className="bg-white rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col flex-1 min-h-0 pb-2">
+            <div className="bg-white rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
                 <div className="p-5 border-b bg-stone-50/50 flex justify-between items-center shrink-0">
                     <h3 className="font-black text-sm text-[#861b00] flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[20px]">point_of_sale</span> ความเคลื่อนไหวเงินสด (กะปัจจุบัน)
+                        <span className="material-symbols-outlined text-[20px]">history_edu</span> รายการเงินสดในกะปัจจุบัน
                     </h3>
+                    <span className="text-[10px] font-bold text-stone-400">พบ {cashTransactions.length} รายการ</span>
                 </div>
-                <div className="overflow-y-auto flex-1 no-scrollbar">
-                    <table className="w-full text-left text-sm min-w-[600px]">
-                        <thead className="bg-white border-b text-[10px] font-bold text-stone-400 uppercase tracking-widest sticky top-0 z-10">
+
+                <div className="overflow-y-auto flex-1 no-scrollbar pb-10">
+                    <table className="w-full text-left text-sm min-w-[850px]">
+                        <thead className="bg-white border-b text-[10px] font-black text-stone-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
                             <tr>
                                 <th className="p-5 pl-8 w-28">เวลา</th>
+                                <th className="p-5 w-40 text-[#861b00]">เลขที่บิล</th>
                                 <th className="p-5 w-32">ประเภท</th>
-                                <th className="p-5">รายการ</th>
-                                <th className="p-5 text-center w-32">พนักงาน</th>
+                                <th className="p-5">รายละเอียด</th>
+                                <th className="p-5 text-center w-28">พนักงาน</th>
                                 <th className="p-5 text-right pr-8 w-40">จำนวนเงิน (฿)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-stone-100">
                             {cashTransactions.length === 0 ? (
-                                <tr><td colSpan="5" className="p-16 text-center text-stone-300 uppercase font-black text-xs tracking-widest">ยังไม่มีความเคลื่อนไหวของเงินสดในกะนี้</td></tr>
+                                /* 1. กรณีไม่มีรายการ (Empty State) */
+                                <tr>
+                                    <td colSpan="6" className="p-16 text-center">
+                                        <div className="w-12 h-12 mx-auto bg-stone-50 rounded-full flex items-center justify-center mb-3">
+                                            <span className="material-symbols-outlined text-2xl text-stone-300">payments</span>
+                                        </div>
+                                        <p className="text-stone-300 uppercase font-black text-[10px] tracking-widest">ไม่มีรายการเงินสดเกิดขึ้นในกะนี้</p>
+                                    </td>
+                                </tr>
                             ) : (
-                                cashTransactions.map(t => (
-                                    <tr key={t.id} className="hover:bg-stone-50/50 transition-colors group">
-                                        <td className="p-4 pl-8 text-[11px] font-bold text-stone-500">{t.time}</td>
-                                        <td className="p-4">
-                                            <span className={`px-3 py-1.5 border rounded-md text-[9px] font-bold uppercase tracking-wider ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : t.type === 'INCOME' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : t.type === 'EXPENSE' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-stone-100'}`}>
-                                                {t.type === 'SALE' ? 'ขายสินค้า' : t.type === 'INCOME' ? 'บันทึกรับ' : t.type === 'EXPENSE' ? 'บันทึกจ่าย' : t.type}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-sm font-bold text-stone-700">{t.desc}</td>
-                                        <td className="p-4 text-center">
-                                            <span className="text-[10px] font-bold bg-stone-100 px-2.5 py-1 rounded text-stone-500">{t.cashier}</span>
-                                        </td>
-                                        <td className={`p-4 pr-8 text-right font-black text-lg ${t.amount >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                            {t.amount >= 0 ? '+' : ''}฿{Math.abs(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </td>
-                                    </tr>
-                                ))
+                                /* 2. กรณีมีรายการ (Mapping Data) */
+                                cashTransactions.map(t => {
+                                    // 🌟 คำนวณสถานะและยอดเงิน (Logic เดียวกับหน้า Close Shift)
+                                    const isExpense = t.type === 'EXPENSE';
+                                    const amount = parseFloat(t.amount || t.total || 0);
+
+                                    return (
+                                        <tr key={t.id} className="hover:bg-stone-50/50 transition-colors group">
+                                            {/* เวลา: ดึงจาก date_raw ที่เราเพิ่มเข้าไปใหม่ */}
+                                            <td className="p-4 pl-8 text-[11px] font-bold text-stone-500 whitespace-nowrap">
+                                                {t.date_raw || t.created_at ? (
+                                                    new Date(t.date_raw || t.created_at).toLocaleString('th-TH', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        second: '2-digit',
+                                                        hour12: false
+                                                    }).replace(/ /g, ' ').replace(',', ' -') + ' น.'
+                                                ) : (
+                                                    t.time || '--:--'
+                                                )}
+                                            </td>
+
+                                            {/* เลขที่บิล: แสดง bill_id (เช่น SO-xxxx) ถ้าไม่มีจะแสดง ID ปกติ */}
+                                            <td className="p-4">
+                                                <span className="text-[11px] font-black text-stone-700 bg-stone-100 px-2.5 py-1 rounded-lg group-hover:bg-[#861b00]/10 group-hover:text-[#861b00] transition-colors">
+                                                    {t.bill_id || t.id}
+                                                </span>
+                                            </td>
+
+                                            {/* ประเภท: Badge แยกสีตามประเภทรายการ (SALE/TOPUP/INCOME/EXPENSE) */}
+                                            <td className="p-4">
+                                                <span className={`px-4 py-1.5 text-[9px] tracking-widest font-black rounded-full inline-block border ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                    t.type === 'TOPUP' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                        t.type === 'INCOME' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                            t.type === 'EXPENSE' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                                'bg-stone-100 text-stone-600 border-stone-200'
+                                                    }`}>
+                                                    {t.type === 'SALE' ? 'ขายสินค้า' :
+                                                        t.type === 'TOPUP' ? 'เติมเงิน' :
+                                                            t.type === 'INCOME' ? 'นำเงินเข้า' :
+                                                                t.type === 'EXPENSE' ? 'นำเงินออก' : t.type}
+                                                </span>
+                                            </td>
+
+                                            {/* รายละเอียด */}
+                                            <td className="p-4 text-[13px] font-bold text-stone-600 group-hover:text-stone-900 transition-colors">
+                                                {t.desc || '-'}
+                                            </td>
+
+                                            {/* พนักงาน */}
+                                            <td className="p-4 text-center">
+                                                <span className="text-[10px] font-black text-stone-400 uppercase tracking-tighter">
+                                                    {t.cashier || 'System'}
+                                                </span>
+                                            </td>
+
+                                            {/* จำนวนเงิน: ใส่สีแดงถ้าเป็นเงินออก และเขียวถ้าเป็นเงินเข้า */}
+                                            <td className={`p-4 pr-8 text-right font-black text-[16px] ${isExpense ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                {isExpense ? '-' : '+'}฿{Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

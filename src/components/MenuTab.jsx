@@ -64,7 +64,7 @@ export default function MenuTab({ menuAction, setMenuAction }) {
 
     const saveMenuItem = async () => {
         if (!newItem.name_th || !newItem.price) return alert('ระบุชื่อและราคา');
-        
+
         // 🌟 แปลง ID เป็นชื่อหมวดหมู่ เพื่อให้ระบบ Auto-Mapping ของหลังบ้านทำงาน
         const targetCat = categories.find(c => String(c.id) === String(newItem.cat));
         const payload = {
@@ -166,6 +166,102 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                 </div>
             )}
 
+            {/* 🌟 Options Modal (จัดการตัวเลือกเสริม) */}
+            {isOptionsModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] p-6 lg:p-8 max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-5 shrink-0 border-b pb-4">
+                            <h3 className="font-black text-xl lg:text-2xl text-stone-800 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[28px] text-amber-500">format_list_bulleted</span> จัดการตัวเลือกเสริม
+                            </h3>
+                            <button onClick={() => setIsOptionsModalOpen(false)} className="w-8 h-8 bg-stone-100 text-stone-400 rounded-full flex items-center justify-center">
+                                <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-2 pb-4">
+                            {optionGroups.length === 0 ? (
+                                <div className="text-center py-10 bg-stone-50 rounded-3xl border-2 border-stone-100 border-dashed">
+                                    <span className="material-symbols-outlined text-5xl text-stone-300 mb-2">playlist_add</span>
+                                    <p className="text-stone-400 font-bold text-sm">ยังไม่มีตัวเลือกเสริมในระบบ</p>
+                                </div>
+                            ) : (
+                                optionGroups.map((group, idx) => (
+                                    <div key={idx} className="bg-white border-2 border-stone-100 p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                        <div className="flex-1">
+                                            <h4 className="font-black text-stone-800 text-lg mb-1">{group.name}</h4>
+                                            <p className="text-xs font-bold text-stone-400">ใช้กับ: {group.applyTo.join(', ') || 'ทั้งหมด'}</p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {group.choices.filter(c => c.n).map((c, i) => (
+                                                    <span key={i} className="bg-stone-100 text-stone-600 px-2 py-1 rounded text-[10px] font-bold">
+                                                        {c.n} {c.p > 0 ? `(+฿${c.p})` : ''}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 w-full sm:w-auto">
+                                            <button onClick={() => { setEditingOptionGroup(group); setNewOptionGroup(group); setIsCreateGroupModalOpen(true); }} className="flex-1 sm:flex-none px-4 py-2 bg-amber-50 text-amber-600 rounded-xl font-bold text-xs hover:bg-amber-500 hover:text-white transition-colors">แก้ไข</button>
+                                            <button onClick={() => setOptionGroups(optionGroups.filter((_, i) => i !== idx))} className="flex-1 sm:flex-none px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-xs hover:bg-red-500 hover:text-white transition-colors">ลบ</button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="pt-4 border-t shrink-0">
+                            <button onClick={() => { setEditingOptionGroup(null); setNewOptionGroup({ name: '', applyTo: [], choices: [{ n: '', p: '' }, { n: '', p: '' }, { n: '', p: '' }, { n: '', p: '' }] }); setIsCreateGroupModalOpen(true); }} className="w-full py-4 bg-stone-800 hover:bg-black text-white font-black rounded-2xl transition-colors flex items-center justify-center gap-2">
+                                <span className="material-symbols-outlined text-[20px]">add_circle</span> เพิ่มกลุ่มตัวเลือกใหม่
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🌟 Sub-Modal: สร้าง/แก้ไขกลุ่มตัวเลือก */}
+            {isCreateGroupModalOpen && (
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] p-6 lg:p-8 max-w-md w-full shadow-2xl flex flex-col max-h-[90vh]">
+                        <h3 className="font-black text-xl text-stone-800 mb-4">{editingOptionGroup ? 'แก้ไขกลุ่มตัวเลือก' : 'สร้างกลุ่มตัวเลือกใหม่'}</h3>
+
+                        <div className="space-y-4 overflow-y-auto no-scrollbar pr-2 pb-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-stone-400 uppercase">ชื่อกลุ่ม (เช่น ระดับความหวาน)</label>
+                                <input value={newOptionGroup.name} onChange={(e) => setNewOptionGroup({ ...newOptionGroup, name: e.target.value })} className="w-full p-3 border-2 border-stone-100 bg-stone-50 rounded-xl font-bold outline-none focus:border-amber-500" placeholder="ระบุชื่อกลุ่ม..." />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-stone-400 uppercase mb-2 block">ตัวเลือกย่อย</label>
+                                <div className="space-y-2">
+                                    {newOptionGroup.choices.map((choice, idx) => (
+                                        <div key={idx} className="flex gap-2">
+                                            <input value={choice.n} onChange={(e) => { const nc = [...newOptionGroup.choices]; nc[idx].n = e.target.value; setNewOptionGroup({ ...newOptionGroup, choices: nc }); }} className="flex-[2] p-2.5 border-2 border-stone-100 bg-white rounded-xl font-bold text-xs outline-none focus:border-amber-500" placeholder="ชื่อตัวเลือก (เช่น หวาน 50%)" />
+                                            <div className="flex-[1] relative">
+                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">฿</span>
+                                                <input type="number" value={choice.p} onChange={(e) => { const nc = [...newOptionGroup.choices]; nc[idx].p = e.target.value; setNewOptionGroup({ ...newOptionGroup, choices: nc }); }} className="w-full p-2.5 pl-6 border-2 border-stone-100 bg-white rounded-xl font-bold text-xs outline-none focus:border-amber-500" placeholder="บวกเพิ่ม" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => setNewOptionGroup({ ...newOptionGroup, choices: [...newOptionGroup.choices, { n: '', p: '' }] })} className="text-xs font-bold text-amber-600 mt-2 flex items-center gap-1 hover:text-amber-700"><span className="material-symbols-outlined text-[14px]">add</span> เพิ่มแถว</button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 shrink-0 pt-4 border-t">
+                            <button onClick={() => setIsCreateGroupModalOpen(false)} className="flex-1 py-3 bg-stone-100 text-stone-500 font-bold rounded-xl">ยกเลิก</button>
+                            <button onClick={() => {
+                                if (!newOptionGroup.name) return alert('กรุณาระบุชื่อกลุ่ม');
+                                if (editingOptionGroup) {
+                                    setOptionGroups(optionGroups.map(g => g === editingOptionGroup ? newOptionGroup : g));
+                                } else {
+                                    setOptionGroups([...optionGroups, newOptionGroup]);
+                                }
+                                setIsCreateGroupModalOpen(false);
+                            }} className="flex-[2] py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl">บันทึกกลุ่ม</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 🌟 Layout: 1:2 on iPad (md) and 1:3 on PC (lg) */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 flex-1 min-h-0 overflow-hidden">
 
@@ -226,7 +322,6 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                                         </span>
                                                     </div>
                                                     {it.name_en && <span className="font-bold text-stone-400 text-[10px] lg:text-[11px] truncate">{it.name_en}</span>}
-                                                    {/* Badge Category (Visible only on Large screens or PC) */}
                                                     <div className="hidden lg:block mt-1">
                                                         <span className="text-[9px] bg-stone-100 text-stone-500 px-2 py-0.5 rounded font-black uppercase border">{categories.find(c => String(c.id) === String(it.cat))?.name || '-'}</span>
                                                     </div>

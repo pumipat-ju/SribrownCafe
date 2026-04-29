@@ -92,11 +92,14 @@ class MenuItemOut(MenuItemBase):
 
 
 class TransactionBase(BaseModel):
+    bill_id: Optional[str] = None
+    date_raw: Optional[str] = None
     type: str
     amount: float
     method: Optional[str] = None
     desc: Optional[str] = None
     cashier: Optional[str] = None
+    items: Optional[str] = None
 
 
 class TransactionCreate(TransactionBase):

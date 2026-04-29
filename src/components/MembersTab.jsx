@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import { fetchJSON } from '../api.js';
+import ReceiptPrintout from '../components/ReceiptPrintout'; // 🌟 1. Import Component ใบเสร็จเข้ามา
 
 // 🌟 Helper Component สำหรับแอนิเมชันตัวเลขวิ่ง (Count Up)
 const CountUpAnim = ({ end, isMoney = false }) => {
@@ -21,8 +22,7 @@ const CountUpAnim = ({ end, isMoney = false }) => {
 };
 
 export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
-    const { members, setMembers, currentEmployee } = useContext(AppContext);
-
+    const { members, setMembers, currentEmployee, employees, transactions, setTransactions, generateBillId, marketing } = useContext(AppContext);
     // 🌟 โหมดสลับดูระหว่าง "ลูกค้าปกติ" กับ "ลูกค้าที่ถูกระงับ (Archive)"
     const [showArchived, setShowArchived] = useState(false);
 
@@ -45,11 +45,12 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
     const [topupAmount, setTopupAmount] = useState('');
     const [topupStep, setTopupStep] = useState('AMOUNT'); // AMOUNT, PIN, SUCCESS
     const [topupPin, setTopupPin] = useState('');
-    const [topupReceipt, setTopupReceipt] = useState(null); // 🌟 เก็บข้อมูลสลิปเติมเงิน
+    const [topupMethod, setTopupMethod] = useState('CASH'); // 🌟 เก็บช่องทางชำระเงิน
+    const [topupReceipt, setTopupReceipt] = useState(null);
 
     const [couponMember, setCouponMember] = useState(null);
     const [couponPin, setCouponPin] = useState('');
-    const [isCouponSuccess, setIsCouponSuccess] = useState(false); // 🌟 แจ้งเตือนแจกคูปองสำเร็จ
+    const [isCouponSuccess, setIsCouponSuccess] = useState(false);
 
     const [deleteMember, setDeleteMember] = useState(null);
     const [deletePin, setDeletePin] = useState('');
@@ -79,31 +80,18 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
         return match ? `${match[1]}-${match[2]}-${match[3]}` : p;
     };
 
-    // 💎 อัปเกรด Tier ให้เป็น Gradient สไตล์ Luxury + แสงสะท้อน
-    // 💎 อัปเกรด Tier ให้เป็น Gradient สไตล์ Luxury + แสงสะท้อน + สีไหล (Flow Motion)
     const getTier = (member) => {
         let rawTier = (member.tier || 'Bronze').trim();
         let tierName = rawTier.charAt(0).toUpperCase() + rawTier.slice(1).toLowerCase();
 
         if (tierName === 'Platinum') tierName = 'Diamond';
 
+        // 🌟 เปลี่ยนสีให้มินิมอล สบายตาแบบ SRIBROWN (อิงสีจาก MarketingTab)
         const config = {
-            Diamond: {
-                name: 'Diamond',
-                color: 'bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 border-none shimmer-effect animate-gradient-x'
-            },
-            Gold: {
-                name: 'Gold',
-                color: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 text-white shadow-lg shadow-amber-500/40 border-none shimmer-effect animate-gradient-x'
-            },
-            Silver: {
-                name: 'Silver',
-                color: 'bg-gradient-to-r from-slate-300 via-gray-400 to-stone-400 text-white shadow-sm border-none animate-gradient-x'
-            },
-            Bronze: {
-                name: 'Bronze',
-                color: 'bg-gradient-to-r from-orange-300 via-rose-400 to-orange-500 text-white shadow-sm border-none animate-gradient-x'
-            }
+            Diamond: { name: 'Diamond', color: 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 border border-blue-300 shadow-sm' },
+            Gold: { name: 'Gold', color: 'bg-gradient-to-br from-yellow-100 via-yellow-200 to-amber-300 text-amber-700 border border-yellow-300 shadow-sm' },
+            Silver: { name: 'Silver', color: 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 border border-slate-300 shadow-sm' },
+            Bronze: { name: 'Bronze', color: 'bg-gradient-to-br from-orange-50 to-orange-100 text-orange-700 border border-orange-200 shadow-sm' }
         };
 
         return config[tierName] || config.Bronze;
@@ -271,74 +259,104 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
         else if (topupPin.length < 6) setTopupPin(prev => prev + num);
     };
 
-    const handleVerifyTopupPin = async () => {
-        const validEmpPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
-        if (!validEmpPin) return alert('ไม่พบข้อมูลพนักงาน กรุณา Login ใหม่');
-        if (topupPin !== validEmpPin) {
-            alert('รหัสพนักงานไม่ถูกต้อง! ไม่สามารถทำรายการเติมเงินได้');
-            setTopupPin('');
-            return;
-        }
-        const amount = parseFloat(topupAmount);
-        const newWallet = (topupMember.wallet || 0) + amount;
-        const newPoints = (topupMember.points || 0) + amount; // เติม ฿1 = 1 point
-
-        const receipt = {
-            id: `TOP-${Date.now().toString().slice(-6)}`,
-            amount: amount,
-            cashier: currentEmployee?.name || 'Admin',
-            paymentMethod: 'เงินสด/QR',
-            newBalance: newWallet
-        };
-
-        try {
-            const updated = await fetchJSON(`/members/${topupMember.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    ...topupMember,
-                    wallet: newWallet,
-                    points: newPoints
-                })
-            });
-
-            // 🌟 บันทึกรายการ Top-up ลง Database จริง
-            try {
-                await fetchJSON('/transactions/', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        type: 'TOPUP',
-                        amount: amount,
-                        method: 'เงินสด/QR',
-                        desc: `เติมเงินให้: ${topupMember.name}`,
-                        cashier: currentEmployee?.name || 'Staff'
-                    })
-                });
-            } catch (txErr) {
-                console.error("Failed to record topup transaction:", txErr);
-            }
-
-            setMembers(members.map(m => m.id === topupMember.id
-                ? { ...m, wallet: updated.wallet ?? newWallet, points: updated.points ?? newPoints }
-                : m
-            ));
-            setTopupReceipt(receipt);
-            setTopupStep('SUCCESS');
-        } catch (error) {
-            setMembers(members.map(m => m.id === topupMember.id
-                ? { ...m, wallet: newWallet, points: newPoints }
-                : m
-            ));
-            setTopupReceipt(receipt);
-            setTopupStep('SUCCESS');
-        }
-    };
-
+    // 🌟 1. ย้ายขึ้นมาบนสุด เพื่อแก้ปัญหาหน้าจอ Crash (ขาว)
     const closeTopupModal = () => {
         setTopupMember(null);
         setTopupAmount('');
         setTopupStep('AMOUNT');
         setTopupPin('');
+        setTopupMethod('CASH');
         setTopupReceipt(null);
+    };
+
+    const handleVerifyTopupPin = async () => {
+        const authEmp = employees?.find(emp => String(emp.pin) === String(topupPin));
+        if (!authEmp) {
+            alert('รหัสพนักงานไม่ถูกต้อง!');
+            setTopupPin('');
+            return;
+        }
+
+        const amount = parseFloat(topupAmount || 0);
+        const newWallet = parseFloat(topupMember.wallet || 0) + amount;
+        const newPoints = parseFloat(topupMember.points || 0) + amount;
+
+        const newTopupId = generateBillId('TOPUP', transactions);
+        const now = new Date();
+
+        // 1. ข้อมูลบิล (ตรงตาม Database)
+        const dbTxnPayload = {
+            bill_id: newTopupId,
+            type: 'TOPUP',
+            amount: amount,
+            method: topupMethod,
+            desc: `เติมเงินให้: ${topupMember.name}`, // ใช้ name แทน nickname
+            cashier: authEmp.name,
+            date_raw: now.toISOString(),
+            items: JSON.stringify([{ name: 'เติมเงิน E-Wallet', qty: 1, price: amount }])
+        };
+
+        const uiTxnData = {
+            ...dbTxnPayload,
+            id: newTopupId,
+            subtotal: amount,
+            time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
+            date: now.toLocaleDateString('th-TH')
+        };
+
+        // 🌟 2. ข้อมูลอัปเดตลูกค้าแบบ "คลีน 100%" (ลบ id, isActive, tier ทิ้งทั้งหมด!)
+        // เพื่อให้ตรงกับ MemberUpdate ใน schemas.py เป๊ะๆ
+        const cleanMemberPayload = {
+            name: String(topupMember.name),
+            phone: String(topupMember.phone),
+            pin: String(topupMember.pin),
+            points: newPoints,
+            wallet: newWallet,
+            age: topupMember.age ? parseInt(topupMember.age) : null,
+            dob: topupMember.dob || null
+        };
+
+        try {
+            // 💾 1. อัปเดตกระเป๋าตังค์ E-Wallet (คราวนี้ Backend รับข้อมูลชิลๆ แน่นอน)
+            // 🌟 พระเอกอยู่ตรงนี้: ใส่คำว่า const updatedMember = ... เพื่อรอรับข้อมูลที่ Backend ตอบกลับมา!
+            const updatedMember = await fetchJSON(`/members/${topupMember.id}`, {
+                method: 'PUT',
+                body: JSON.stringify(cleanMemberPayload)
+            });
+
+            // 💾 2. บันทึกบิลลงประวัติ
+            const dbTxn = await fetchJSON('/transactions/', {
+                method: 'POST',
+                body: JSON.stringify(dbTxnPayload)
+            });
+
+            // ✅ 3. อัปเดตหน้าจอให้แสดงยอดใหม่ + Tier ใหม่ทันที!
+            setTransactions(prev => [{ ...uiTxnData, id: dbTxn?.id || newTopupId }, ...prev]);
+
+            // 🌟 เปลี่ยนจากการบวกเลขเอง เป็นการเอา updatedMember ที่ได้จาก Backend มาทับเลย!
+            setMembers(members.map(m => m.id === topupMember.id ? updatedMember : m));
+
+            setTopupReceipt({
+                ...uiTxnData,
+                paymentMethod: topupMethod,
+                timestamp: now,
+                newBalance: updatedMember.wallet // ใช้ยอดใหม่จาก Backend ชัวร์สุด
+            });
+            setTopupStep('SUCCESS');
+
+        } catch (error) {
+            console.error("Save Error:", error);
+            // กรณีขัดข้อง ก็ให้หน้าจออัปเดตไปก่อน
+            setTransactions(prev => [uiTxnData, ...prev]);
+            setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: newWallet, points: newPoints } : m));
+            setTopupReceipt({
+                ...uiTxnData,
+                paymentMethod: topupMethod,
+                timestamp: now,
+                newBalance: newWallet
+            });
+            setTopupStep('SUCCESS');
+        }
     };
 
     // ==========================================
@@ -368,7 +386,7 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
     };
 
     // ==========================================
-    // 🔴🌟 ฟังก์ชันจัดการ Flow ระงับบัญชี (Archive) / กู้คืน (Restore)
+    // 🔴🌟 ฟังก์ชันจัดการ Flow ระงับบัญชี / กู้คืน
     // ==========================================
     const handleDeleteNumClick = (num) => {
         if (num === 'C') setDeletePin('');
@@ -418,10 +436,79 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
         }
     };
 
-    return (
-        <div className="flex flex-col h-full gap-5 w-full relative animate-in fade-in duration-500 font-body">
 
-            {/* 🎨 CSS สำหรับ Animations สุดล้ำ */}
+    // ==========================================
+    // 🌟 EARLY RETURN: หน้าจอเติมเงินสำเร็จ (หนี print:hidden)
+    // ==========================================
+    if (topupMember && topupStep === 'SUCCESS' && topupReceipt) {
+        return (
+            <>
+                {/* 🖨️ เครื่องพิมพ์จะมองเห็นตัวนี้ (จัดตารางสวยงาม) */}
+                <ReceiptPrintout txn={topupReceipt} />
+
+                {/* 🖥️ ส่วนแสดงผลบนจอปกติ (ซ่อนตอนพิมพ์) */}
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in print:hidden">
+                    <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.2)] relative z-10 animate-bounce-modal flex flex-col items-center">
+                        <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-500/40 border-4 border-white">
+                            <span className="material-symbols-outlined text-5xl">check_circle</span>
+                        </div>
+                        <h2 className="text-3xl font-black text-stone-800 mb-2">เติมเงินสำเร็จ!</h2>
+                        <p className="text-stone-400 font-bold text-sm mb-8 tracking-wide uppercase">Transaction Complete</p>
+
+                        <div className="w-full bg-stone-50 rounded-[1.5rem] p-6 mb-8 text-sm space-y-4 font-bold text-stone-500 border border-stone-100 shadow-inner relative overflow-hidden">
+                            {/* Ticket edge decoration */}
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full"></div>
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-4 h-4 bg-white rounded-full"></div>
+
+                            <div className="flex justify-between"><span>รหัสอ้างอิง:</span><span className="text-stone-800">{topupReceipt?.id}</span></div>
+                            <div className="flex justify-between"><span>ลูกค้า:</span><span className="text-stone-800">{topupMember?.name}</span></div>
+                            <div className="flex justify-between"><span>พนักงาน:</span><span className="text-stone-800">{topupReceipt?.cashier}</span></div>
+
+                            <div className="flex justify-between">
+                                <span>ช่องทางรับเงิน:</span>
+                                <span className="text-stone-800 font-black">
+                                    {topupReceipt?.paymentMethod === 'CASH' ? 'เงินสด' : 'QR Payment'}
+                                </span>
+                            </div>
+
+                            <div className="border-t-2 border-stone-200 border-dashed pt-4 mt-2 flex justify-between items-center">
+                                <span className="text-emerald-600 font-black">ยอดที่เติม:</span>
+                                <span className="text-emerald-600 font-black text-2xl">฿{fMoney(topupReceipt?.amount)}</span>
+                            </div>
+                            <div className="flex justify-between items-center mt-2">
+                                <span className="text-xs">ยอดคงเหลือใหม่:</span>
+                                <span className="text-stone-800 font-black text-lg">฿{fMoney(topupReceipt?.newBalance)}</span>
+                            </div>
+                        </div>
+
+                        {/* 🌟 2 ปุ่มเหมือนหน้า Checkout */}
+                        <div className="flex gap-3 w-full">
+                            <button
+                                onClick={() => { setTimeout(() => window.print(), 300); }}
+                                className="flex-[1] py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 text-sm font-black rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">print</span> พิมพ์สลิป
+                            </button>
+                            <button
+                                onClick={closeTopupModal}
+                                className="flex-[1.5] py-4 bg-stone-800 hover:bg-black text-white text-base font-black rounded-2xl shadow-xl shadow-stone-800/30 transition-all active:scale-95"
+                            >
+                                ปิดหน้าต่าง
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+
+    // ==========================================
+    // 🖥️ MAIN RETURN
+    // ==========================================
+    return (
+        <div className="flex flex-col h-full gap-5 w-full relative animate-in fade-in duration-500 font-body print:hidden">
+
             <style>{`
                 @keyframes gradient-x {
                     0%, 100% { background-position: 0% 50%; }
@@ -492,27 +579,27 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                     <div className="grid grid-cols-4 gap-2 lg:gap-3 text-center">
 
                         {/* Bronze */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-orange-300 via-rose-400 to-orange-500 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-md shadow-orange-500/20 animate-gradient-x hover:scale-110 transition-transform cursor-default border border-white/20">
-                            <p className="text-[8px] lg:text-[9px] font-black text-white/90 mb-0.5 uppercase tracking-widest drop-shadow-sm">Bronze</p>
-                            <p className="font-black text-sm lg:text-xl text-white drop-shadow-md"><CountUpAnim end={tierCounts.Bronze} /></p>
+                        <div className="relative overflow-hidden bg-gradient-to-br from-orange-50 to-orange-100 text-orange-700 border border-orange-200 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-sm hover:scale-105 transition-transform cursor-default">
+                            <p className="text-[8px] lg:text-[9px] font-black mb-0.5 uppercase tracking-widest opacity-80">Bronze</p>
+                            <p className="font-black text-sm lg:text-xl"><CountUpAnim end={tierCounts.Bronze} /></p>
                         </div>
 
                         {/* Silver */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-slate-300 via-gray-400 to-stone-400 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-md shadow-slate-500/20 animate-gradient-x hover:scale-110 transition-transform cursor-default border border-white/20">
-                            <p className="text-[8px] lg:text-[9px] font-black text-white/90 mb-0.5 uppercase tracking-widest drop-shadow-sm">Silver</p>
-                            <p className="font-black text-sm lg:text-xl text-white drop-shadow-md"><CountUpAnim end={tierCounts.Silver} /></p>
+                        <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 border border-slate-300 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-sm hover:scale-105 transition-transform cursor-default">
+                            <p className="text-[8px] lg:text-[9px] font-black mb-0.5 uppercase tracking-widest opacity-80">Silver</p>
+                            <p className="font-black text-sm lg:text-xl"><CountUpAnim end={tierCounts.Silver} /></p>
                         </div>
 
                         {/* Gold */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-lg shadow-amber-500/30 animate-gradient-x shimmer-effect hover:scale-110 transition-transform cursor-default border border-white/20">
-                            <p className="text-[8px] lg:text-[9px] font-black text-white/90 mb-0.5 uppercase tracking-widest drop-shadow-sm">Gold</p>
-                            <p className="font-black text-sm lg:text-xl text-white drop-shadow-md"><CountUpAnim end={tierCounts.Gold} /></p>
+                        <div className="relative overflow-hidden bg-gradient-to-br from-yellow-100 via-yellow-200 to-amber-300 text-amber-700 border border-yellow-300 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-sm hover:scale-105 transition-transform cursor-default">
+                            <p className="text-[8px] lg:text-[9px] font-black mb-0.5 uppercase tracking-widest opacity-80">Gold</p>
+                            <p className="font-black text-sm lg:text-xl"><CountUpAnim end={tierCounts.Gold} /></p>
                         </div>
 
                         {/* Diamond */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-lg shadow-blue-500/30 animate-gradient-x shimmer-effect hover:scale-110 transition-transform cursor-default border border-white/20">
-                            <p className="text-[8px] lg:text-[9px] font-black text-white/90 mb-0.5 uppercase tracking-widest drop-shadow-sm">Diamond</p>
-                            <p className="font-black text-sm lg:text-xl text-white drop-shadow-md"><CountUpAnim end={tierCounts.Diamond} /></p>
+                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 border border-blue-300 rounded-xl lg:rounded-2xl p-2 lg:p-2.5 shadow-sm hover:scale-105 transition-transform cursor-default">
+                            <p className="text-[8px] lg:text-[9px] font-black mb-0.5 uppercase tracking-widest opacity-80">Diamond</p>
+                            <p className="font-black text-sm lg:text-xl"><CountUpAnim end={tierCounts.Diamond} /></p>
                         </div>
 
                     </div>
@@ -563,7 +650,6 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                             </div>
                                         </td>
                                         <td className="py-4 px-6 text-center whitespace-nowrap">
-                                            {/* 💎 3. Tier Badges */}
                                             <div className={`w-[90px] mx-auto py-1.5 text-[11px] font-black rounded-full shadow-sm flex items-center justify-center transition-all tracking-wider ${showArchived ? 'bg-stone-200 text-stone-400 opacity-50' : tier.color}`}>
                                                 {tier.name}
                                             </div>
@@ -731,19 +817,25 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
             )}
 
             {/* 💸 เติมเงิน Modal */}
-            {topupMember && (
+            {topupMember && topupStep !== 'SUCCESS' && (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" onClick={closeTopupModal} />
 
                     {topupStep === 'AMOUNT' && (
                         <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] p-8 max-w-sm w-full relative z-10 shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-bounce-modal text-center border border-white">
+
+                            {/* 🌟 ปุ่ม X มุมขวาบน สำหรับยกเลิก */}
+                            <button onClick={closeTopupModal} className="absolute top-6 right-6 w-8 h-8 flex justify-center items-center bg-stone-100 text-stone-500 rounded-full hover:bg-stone-200 transition-colors">
+                                <span className="material-symbols-outlined text-sm">close</span>
+                            </button>
+
                             <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/30">
                                 <span className="material-symbols-outlined text-4xl">account_balance_wallet</span>
                             </div>
                             <h3 className="font-black text-2xl text-stone-800 mb-1">เติมเงิน E-Wallet</h3>
                             <p className="text-sm font-bold text-stone-400 mb-8">คุณ {topupMember.nickname || topupMember.name}</p>
 
-                            <form onSubmit={(e) => { e.preventDefault(); if (parseFloat(topupAmount) > 0) setTopupStep('PIN'); else alert('กรุณาระบุจำนวนเงิน'); }}>
+                            <form onSubmit={(e) => e.preventDefault()}>
                                 <div className="relative mb-6">
                                     <span className="absolute left-6 top-1/2 -translate-y-1/2 text-3xl font-black text-emerald-600/50">฿</span>
                                     <input type="number" autoFocus value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} className="w-full pl-16 pr-6 py-5 bg-emerald-50/50 border-2 border-emerald-100 rounded-3xl font-black text-5xl text-center text-emerald-600 outline-none focus:border-emerald-400 focus:bg-white transition-all shadow-inner" placeholder="0" />
@@ -753,9 +845,37 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                         <button type="button" key={amt} onClick={() => setTopupAmount(amt.toString())} className="py-3 bg-stone-50 rounded-2xl font-black text-stone-600 hover:bg-stone-100 hover:scale-105 active:scale-95 transition-all border border-stone-200/50 shadow-sm">+{amt}</button>
                                     ))}
                                 </div>
-                                <div className="flex gap-3">
-                                    <button type="button" onClick={closeTopupModal} className="flex-1 py-4 font-bold text-stone-400 hover:text-stone-600">ยกเลิก</button>
-                                    <button type="submit" className="flex-[2] py-4 bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:-translate-y-0.5 transition-all text-lg">ถัดไป (ยืนยัน PIN)</button>
+
+                                {/* 🌟 2 ปุ่มชำระเงินแทนปุ่มถัดไป */}
+                                <p className="text-[10px] font-bold text-stone-400 mb-2 uppercase tracking-widest text-left pl-2">เลือกช่องทางรับเงิน</p>
+                                <div className="grid grid-cols-2 gap-3 mb-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (parseFloat(topupAmount) > 0) {
+                                                setTopupMethod('CASH');
+                                                setTopupStep('PIN');
+                                            } else alert('กรุณาระบุจำนวนเงิน');
+                                        }}
+                                        className="py-4 bg-emerald-50 text-emerald-600 border border-emerald-200 font-black rounded-2xl shadow-sm hover:bg-emerald-500 hover:text-white transition-all flex flex-col items-center justify-center gap-1 group active:scale-95"
+                                    >
+                                        <span className="material-symbols-outlined text-[28px] group-hover:scale-110 transition-transform">payments</span>
+                                        เงินสด
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (parseFloat(topupAmount) > 0) {
+                                                setTopupMethod('QR');
+                                                setTopupStep('PIN');
+                                            } else alert('กรุณาระบุจำนวนเงิน');
+                                        }}
+                                        className="py-4 bg-blue-50 text-blue-600 border border-blue-200 font-black rounded-2xl shadow-sm hover:bg-blue-500 hover:text-white transition-all flex flex-col items-center justify-center gap-1 group active:scale-95"
+                                    >
+                                        <span className="material-symbols-outlined text-[28px] group-hover:scale-110 transition-transform">qr_code_scanner</span>
+                                        QR Payment
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -786,37 +906,6 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                             </div>
                         </div>
                     )}
-
-                    {topupStep === 'SUCCESS' && (
-                        <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.2)] relative z-10 animate-bounce-modal flex flex-col items-center">
-                            <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-500/40 border-4 border-white">
-                                <span className="material-symbols-outlined text-5xl">check_circle</span>
-                            </div>
-                            <h2 className="text-3xl font-black text-stone-800 mb-2">เติมเงินสำเร็จ!</h2>
-                            <p className="text-stone-400 font-bold text-sm mb-8 tracking-wide uppercase">Transaction Complete</p>
-
-                            <div className="w-full bg-stone-50 rounded-[1.5rem] p-6 mb-8 text-sm space-y-4 font-bold text-stone-500 border border-stone-100 shadow-inner relative overflow-hidden">
-                                {/* Ticket edge decoration */}
-                                <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full"></div>
-                                <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-4 h-4 bg-white rounded-full"></div>
-
-                                <div className="flex justify-between"><span>รหัสอ้างอิง:</span><span className="text-stone-800">{topupReceipt?.id}</span></div>
-                                <div className="flex justify-between"><span>ลูกค้า:</span><span className="text-stone-800">{topupMember?.name}</span></div>
-                                <div className="flex justify-between"><span>พนักงาน:</span><span className="text-stone-800">{topupReceipt?.cashier}</span></div>
-
-                                <div className="border-t-2 border-stone-200 border-dashed pt-4 mt-2 flex justify-between items-center">
-                                    <span className="text-emerald-600 font-black">ยอดที่เติม:</span>
-                                    <span className="text-emerald-600 font-black text-2xl">฿{fMoney(topupReceipt?.amount)}</span>
-                                </div>
-                                <div className="flex justify-between items-center mt-2">
-                                    <span className="text-xs">ยอดคงเหลือใหม่:</span>
-                                    <span className="text-stone-800 font-black text-lg">฿{fMoney(topupReceipt?.newBalance)}</span>
-                                </div>
-                            </div>
-
-                            <button onClick={closeTopupModal} className="w-full py-4 bg-stone-800 hover:bg-black text-white text-lg font-black rounded-2xl shadow-xl shadow-stone-800/30 transition-all active:scale-95">ปิดหน้าต่าง</button>
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -827,7 +916,7 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
 
                     {!isCouponSuccess ? (
                         <div className="bg-[#f8fafc] rounded-[2.5rem] p-8 w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative z-10 animate-bounce-modal flex flex-col items-center text-center border border-white">
-                            <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-yellow-500 text-white rounded-[1.2rem] flex items-center justify-center mb-4 shadow-lg shadow-amber-500/30">
+                            <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-yellow-50 text-white rounded-[1.2rem] flex items-center justify-center mb-4 shadow-lg shadow-amber-500/30">
                                 <span className="material-symbols-outlined text-3xl">redeem</span>
                             </div>
                             <h2 className="text-xl font-black text-stone-800 mb-1">ยืนยันแจกคูปอง</h2>

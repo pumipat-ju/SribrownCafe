@@ -1,10 +1,10 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
 import { fetchJSON } from '../api.js';
+import ReceiptPrintout from '../components/ReceiptPrintout'; // 🌟 1. Import Shared Component เข้ามา
 
 export default function CheckoutModal({ onClose }) {
-    const { cart, setCart, transactions, setTransactions, currentEmployee, members, setMembers, marketing } = useContext(AppContext);
-
+    const { cart, setCart, transactions, setTransactions, currentEmployee, employees, members, setMembers, marketing, generateBillId } = useContext(AppContext);
     const [checkoutStep, setCheckoutStep] = useState('SUMMARY');
     const [isSuccess, setIsSuccess] = useState(false);
     const [completedTxn, setCompletedTxn] = useState(null);
@@ -17,6 +17,7 @@ export default function CheckoutModal({ onClose }) {
     const [selectedCouponId, setSelectedCouponId] = useState('');
     const [appliedCoupon, setAppliedCoupon] = useState(null);
 
+    const [authEmployee, setAuthEmployee] = useState(null);
     const [isTopupFlow, setIsTopupFlow] = useState(false);
     const [topupStep, setTopupStep] = useState('PROMPT');
     const [topupPin, setTopupPin] = useState('');
@@ -99,54 +100,52 @@ export default function CheckoutModal({ onClose }) {
             }
         }
 
-        // 🌟 สร้างรายละเอียดสินค้าเพื่อเก็บลง Transaction
+        const now = new Date();
         const itemSummary = cart.map(item => `${item.name} x${item.qty}`).join(', ');
-        const descText = selectedMember 
-            ? `ขายให้: ${selectedMember.name} (${itemSummary})` 
+        const descText = selectedMember
+            ? `ขายให้: ${selectedMember.name} (${itemSummary})`
             : `ขายทั่วไป: ${itemSummary}`;
 
-        const now = new Date();
-
-        // 🌟 บันทึกลง Database จริง
-        let dbTransaction = null;
-        try {
-            dbTransaction = await fetchJSON('/transactions/', {
-                method: 'POST',
-                body: JSON.stringify({
-                    type: 'SALE',
-                    amount: netTotal,
-                    method: method,
-                    desc: descText,
-                    cashier: currentEmployee?.name || 'Staff'
-                })
-            });
-        } catch (e) {
-            console.error("Failed to save transaction to DB:", e);
-        }
-
-        const newTransaction = {
-            id: dbTransaction?.id ? `TXN-${dbTransaction.id}` : `TXN-${Date.now().toString().slice(-6)}`,
+        const transactionData = {
+            bill_id: generateBillId('SALE', transactions),
             type: 'SALE',
             amount: netTotal,
             subtotal: subtotal,
             discount: discount,
             beforeVat: beforeVat,
             vatAmount: vatAmount,
-            items: cart,
-            paymentMethod: method, 
-            method: method,        
+            paymentMethod: method,
+            method: method,
             receivedAmount: method === 'CASH' ? parseFloat(receivedAmount) : netTotal,
             change: method === 'CASH' ? change : 0,
-            timestamp: now,
-            dateRaw: now.toISOString(),
+            date_raw: now.toISOString(),
             date: now.toLocaleDateString('th-TH'),
             time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
+            desc: descText,
             cashier: currentEmployee?.name || 'Staff',
-            member: selectedMember ? { ...selectedMember, newWalletBalance } : null,
-            desc: descText // เก็บไว้โชว์หน้า UI ด้วย
+
+            // 🌟 สิ่งที่ต้องเพิ่ม: แปลง Array ตะกร้าสินค้าเป็น String เพื่อเก็บลง DB
+            items: JSON.stringify(cart)
         };
 
-        setTransactions([newTransaction, ...transactions]);
+        let dbTransaction = null;
+        try {
+            dbTransaction = await fetchJSON('/transactions/', {
+                method: 'POST',
+                body: JSON.stringify(transactionData)
+            });
+        } catch (e) {
+            console.error("Failed to save transaction to DB:", e);
+        }
+
+        const newTransaction = {
+            ...transactionData,
+            id: dbTransaction?.id || Date.now(),
+            items: cart,
+            member: selectedMember ? { ...selectedMember, newWalletBalance } : null,
+        };
+
+        setTransactions(prev => [newTransaction, ...prev]);
         setCompletedTxn(newTransaction);
         setIsSuccess(true);
     };
@@ -178,40 +177,67 @@ export default function CheckoutModal({ onClose }) {
     };
 
     const handleVerifyPin = () => {
-        const validPin = currentEmployee?.pin ? String(currentEmployee.pin) : null;
-        if (topupPin === validPin) { setTopupStep('AMOUNT'); setTopupPin(''); }
-        else { alert('รหัส PIN ไม่ถูกต้อง!'); setTopupPin(''); }
+        // 🌟 ค้นหาพนักงานจากรหัส PIN
+        const authEmp = employees?.find(emp => String(emp.pin) === String(topupPin));
+
+        if (authEmp) {
+            setAuthEmployee(authEmp); // 🌟 จำไว้ว่าใครมากดรหัส
+            setTopupStep('AMOUNT');
+            setTopupPin('');
+        } else {
+            alert('รหัส PIN ไม่ถูกต้อง!');
+            setTopupPin('');
+        }
     };
 
     const handleExecuteTopup = async (method) => {
         const addAmount = parseFloat(topupAmount);
         const newWallet = (selectedMember.wallet || 0) + addAmount;
         const updatedMember = { ...selectedMember, wallet: newWallet };
-        
-        try { 
-            await fetchJSON(`/members/${selectedMember.id}`, { method: 'PUT', body: JSON.stringify(updatedMember) }); 
-            
-            // 🌟 บันทึกรายการ Top-up ลง Transaction Database
-            await fetchJSON('/transactions/', {
-                method: 'POST',
-                body: JSON.stringify({
-                    type: 'TOPUP',
-                    amount: addAmount,
-                    method: method,
-                    desc: `เติมเงินให้: ${selectedMember.name}`,
-                    cashier: currentEmployee?.name || 'Staff'
-                })
-            });
-        } catch (e) { console.error("Topup record failed:", e); }
-        
-        setSelectedMember(updatedMember);
 
-        const topupTxn = {
-            id: `TOP-${Date.now().toString().slice(-6)}`, type: 'TOPUP', amount: addAmount,
-            paymentMethod: method, timestamp: new Date(), cashier: currentEmployee?.name || 'Staff'
+        const topupData = {
+            bill_id: generateBillId('TOPUP', transactions),
+            type: 'TOPUP',
+            amount: addAmount,
+            method: method,
+            date_raw: new Date().toISOString(),
+            desc: `เติมเงินให้: ${selectedMember.name}`,
+            cashier: authEmployee?.name || currentEmployee?.name || 'Staff' // 🌟 ใช้ชื่อคนที่มากดรหัส (ถ้าไม่มีก็เอาคนที่ Login อยู่)
         };
-        setTopupReceipt(topupTxn);
-        setTopupStep('SUCCESS');
+
+        try {
+            await fetchJSON(`/members/${selectedMember.id}`, {
+                method: 'PUT',
+                body: JSON.stringify(updatedMember)
+            });
+
+            const dbTxn = await fetchJSON('/transactions/', {
+                method: 'POST',
+                body: JSON.stringify(topupData)
+            });
+
+            setTransactions(prev => [{ ...topupData, id: dbTxn?.id || Date.now() }, ...prev]);
+
+            setSelectedMember(updatedMember);
+
+            const topupTxnForReceipt = {
+                id: topupData.bill_id, // ใช้รหัสบิลที่เราเจนขึ้นมา
+                bill_id: topupData.bill_id, // 🌟 เพิ่มบรรทัดนี้
+                type: 'TOPUP',
+                amount: addAmount,
+                paymentMethod: method,
+                timestamp: new Date(),
+                date_raw: topupData.date_raw, // 🌟 เพิ่มบรรทัดนี้
+                cashier: topupData.cashier,
+                desc: topupData.desc // 🌟 เพิ่มบรรทัดนี้ (เช่น "เติมเงินให้: John")
+            };
+            setTopupReceipt(topupTxnForReceipt);
+            setTopupStep('SUCCESS');
+
+        } catch (e) {
+            console.error("Topup record failed:", e);
+            alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
+        }
     };
 
     const resetTopupFlow = () => {
@@ -220,119 +246,17 @@ export default function CheckoutModal({ onClose }) {
         setTopupPin('');
         setTopupAmount('');
         setTopupReceivedAmount('');
+        setAuthEmployee(null); // 🌟 ล้างค่าพนักงานตอนปิดหน้าต่าง
     };
 
     // ==========================================
-    // 🌟 หน้าจอ SUCCESS (ใบเสร็จ & ระบบปริ้นท์สลิป 80mm แบบแก้ Layout พัง)
+    // 🌟 หน้าจอ SUCCESS (ใบเสร็จ & ระบบปริ้นท์สลิป 80mm)
     // ==========================================
     if (isSuccess && !isTopupFlow && !isMemberPinFlow && completedTxn) {
         return (
             <>
-                {/* 🎨 CSS สายเวทมนตร์: บังคับให้เบราว์เซอร์ลบขอบ และจัดฟอนต์ให้พอดี 80mm */}
-                <style type="text/css">
-                    {`
-                    @media print { 
-                        @page { 
-                            size: 80mm 100%; /* กระดาษกว้าง 80mm */
-                            margin: 0; /* ลบขอบ (Margin) ของหน้ากระดาษ */
-                        } 
-                        body { 
-                            width: 80mm !important;
-                            margin: 0 !important; 
-                            padding: 10px !important; /* เว้นขอบซ้าย-ขวา 10px ป้องกันตัวหนังสือตกขอบ */
-                            background-color: white !important;
-                        }
-                        /* ซ่อน Header และ Footer อัตโนมัติของเบราว์เซอร์ */
-                        header, footer, nav, aside { display: none !important; }
-                        ::-webkit-scrollbar { display: none !important; }
-                    }
-                    `}
-                </style>
-
-                {/* ========================================== */}
-                {/* 🖨️ รูปแบบสำหรับเครื่องพิมพ์ (ซ่อนบนจอ โชว์เฉพาะตอนปริ้นท์) */}
-                {/* ========================================== */}
-                {/* 🌟 ปรับ className เพิ่มเติมเพื่อให้ Layout แน่นขึ้น */}
-                <div className="hidden print:block bg-white text-black font-sans w-full mx-auto" style={{ width: '80mm', maxWidth: '80mm' }}>
-                    <div className="text-center mb-2">
-                        {/* 🌟 ปรับขนาดฟอนต์ให้เล็กกว่าเดิม ป้องกันการตัดบรรทัด (Line wrap) จนดูเละ */}
-                        <h1 className="font-bold text-[16px] leading-tight">SRI BROWN CAFE</h1>
-                        <p className="text-[10px] leading-tight">123 ถ.มิตรภาพ อ.เมือง จ.ขอนแก่น 40000</p>
-                        <p className="text-[10px] leading-tight">โทร. 080-123-4567</p>
-                        <p className="text-[10px] leading-tight">เลขประจำตัวผู้เสียภาษี: 0123456789012 (สำนักงานใหญ่)</p>
-                        <h2 className="font-bold text-[12px] mt-2 border-b border-black border-dashed pb-1">
-                            {printType === 'FULL' ? 'ใบกำกับภาษีเต็มรูป (TAX INVOICE)' : 'ใบกำกับภาษีอย่างย่อ (ABB)'}
-                        </h2>
-                    </div>
-
-                    {printType === 'FULL' && isTaxSaved && (
-                        <div className="mb-2 text-[10px] space-y-0.5 leading-tight">
-                            <p><strong>ชื่อลูกค้า:</strong> {taxForm.name}</p>
-                            <p><strong>เลขผู้เสียภาษี:</strong> {taxForm.taxId}</p>
-                            <p><strong>สาขา:</strong> {taxForm.branch === 'HQ' ? 'สำนักงานใหญ่' : `สาขา ${taxForm.branchId}`}</p>
-                            <p className="break-words whitespace-pre-wrap"><strong>ที่อยู่:</strong> {taxForm.address}</p>
-                            <div className="border-b border-black border-dashed my-1"></div>
-                        </div>
-                    )}
-
-                    <div className="mb-2 text-[10px] leading-tight">
-                        <p><strong>เลขที่:</strong> {completedTxn.id}</p>
-                        <p><strong>วันที่:</strong> {new Date(completedTxn.timestamp).toLocaleString('th-TH')}</p>
-                        <p><strong>พนักงาน:</strong> {completedTxn.cashier}</p>
-                    </div>
-
-                    {/* 🌟 ใช้ w-full แบบเจาะจงความกว้างคอลัมน์ เพื่อไม่ให้ราคาตกไปบรรทัดใหม่ */}
-                    <table className="w-full mb-2 text-[10px] leading-tight">
-                        <thead className="border-t border-b border-black border-dashed">
-                            <tr>
-                                <th className="text-left py-1 w-[60%]">รายการ</th>
-                                <th className="text-center py-1 w-[15%]">จำนวน</th>
-                                <th className="text-right py-1 w-[25%]">รวม</th>
-                            </tr>
-                        </thead>
-                        <tbody className="border-b border-black border-dashed">
-                            {completedTxn.items?.map(item => (
-                                <tr key={item.cartKey}>
-                                    <td className="py-1">
-                                        <div className="truncate w-[45mm]">{item.name}</div>
-                                        {item.options && <div className="text-[9px] text-gray-600 truncate w-[45mm]">- {item.options}</div>}
-                                    </td>
-                                    <td className="text-center py-1 align-top">{item.qty}</td>
-                                    <td className="text-right py-1 align-top">{(item.price * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-
-                    <div className="space-y-0.5 text-[10px] mb-2 leading-tight">
-                        <div className="flex justify-between"><span>รวมเป็นเงิน (Subtotal)</span><span>{completedTxn.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                        {completedTxn.discount > 0 && <div className="flex justify-between"><span>ส่วนลด (Discount)</span><span>-{completedTxn.discount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>}
-                        <div className="flex justify-between"><span>มูลค่าสินค้า (Before VAT)</span><span>{completedTxn.beforeVat?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span>ภาษีมูลค่าเพิ่ม (VAT 7%)</span><span>{completedTxn.vatAmount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-
-                        <div className="flex justify-between font-bold text-[12px] mt-1 border-t border-black border-dashed pt-1">
-                            <span>ยอดชำระสุทธิ (Net Total)</span><span>{completedTxn.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
-
-                    <div className="space-y-0.5 text-[10px] mb-4 border-t border-black border-dashed pt-1 leading-tight">
-                        <div className="flex justify-between"><span>ชำระผ่าน ({completedTxn.paymentMethod})</span><span>{completedTxn.receivedAmount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                        {completedTxn.paymentMethod === 'CASH' && <div className="flex justify-between"><span>เงินทอน (Change)</span><span>{completedTxn.change?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>}
-
-                        {completedTxn.paymentMethod === 'EWALLET' && completedTxn.member && (
-                            <div className="flex justify-between font-bold mt-1 border-t border-black border-dotted pt-1">
-                                <span>ยอดคงเหลือ E-Wallet:</span>
-                                <span>{completedTxn.member.newWalletBalance?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="text-center text-[10px] mt-2 mb-4 leading-tight">
-                        <p>ขอบคุณที่ใช้บริการ</p>
-                        <p>Please come again</p>
-                        <p className="mt-2">- - - - - - - - - - -</p>
-                    </div>
-                </div>
+                {/* 🌟 2. ใช้ Component กลางแทนโค้ดใบเสร็จเดิมที่ยาวเหยียด */}
+                <ReceiptPrintout txn={completedTxn} printType={printType} taxForm={taxForm} />
 
                 {/* ========================================== */}
                 {/* 🖥️ หน้าจอแสดงผลปกติ (ซ่อนตอนปริ้นท์) */}
@@ -467,7 +391,55 @@ export default function CheckoutModal({ onClose }) {
             </>
         );
     }
+    // 🌟 ส่วนที่ทำให้พิมพ์ใบเสร็จเติมเงินได้สวยงามและไม่ขาว (Early Return)
+    if (isTopupFlow && topupStep === 'SUCCESS' && topupReceipt) {
+        return (
+            <>
+                {/* 🖨️ 1. เรียกใช้ Component ใบเสร็จมาตรฐาน (ตัวจัดการความสวยงามอยู่ที่นี่) */}
+                <ReceiptPrintout txn={topupReceipt} />
 
+                {/* 🖥️ 2. ส่วนแสดงผลบนหน้าจอคอมพิวเตอร์ (ซ่อนตอนพิมพ์) */}
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in print:hidden">
+                    <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center">
+                        <div className="w-16 h-16 bg-[#eef8f2] text-[#52a675] rounded-full flex items-center justify-center mb-4">
+                            <span className="material-symbols-outlined text-4xl">check</span>
+                        </div>
+                        <h2 className="text-2xl font-black text-stone-800 mb-1">เติมเงินสำเร็จ!</h2>
+                        <p className="text-stone-400 font-bold text-xs mb-6 tracking-wide">สลิปชั่วคราว - การเติมเงิน</p>
+
+                        <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl p-5 mb-6 text-sm font-bold text-stone-500 space-y-3">
+                            <div className="flex justify-between"><span>รหัสอ้างอิง:</span><span className="text-stone-800">{topupReceipt?.id}</span></div>
+                            <div className="flex justify-between"><span>ลูกค้า:</span><span className="text-stone-800">{selectedMember?.name}</span></div>
+                            <div className="flex justify-between"><span>ช่องทาง:</span><span className="text-[#861b00] uppercase">{topupReceipt?.paymentMethod}</span></div>
+                            <div className="border-t border-stone-200 border-dashed pt-3 mt-1 flex justify-between items-center">
+                                <span className="text-[#52a675] font-black">ยอดที่เติม:</span>
+                                <span className="text-[#52a675] font-black text-lg">฿{topupReceipt?.amount.toLocaleString()}</span>
+                            </div>
+                            <div className="bg-stone-200/50 p-2 rounded-lg flex justify-between items-center mt-2">
+                                <span>ยอดคงเหลือปัจจุบัน:</span>
+                                <span className="text-stone-800">฿{(selectedMember?.wallet || 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 w-full">
+                            <button
+                                onClick={() => { setTimeout(() => window.print(), 300); }}
+                                className="flex-1 py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 text-sm font-black rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">print</span> พิมพ์สลิป
+                            </button>
+                            <button
+                                onClick={() => { resetTopupFlow(); setTimeout(() => { if (selectedMember && selectedMember.wallet >= netTotal) { setIsMemberPinFlow(true); setMemberPin(''); } }, 100); }}
+                                className="flex-[2] py-4 bg-[#861b00] hover:bg-black text-white text-sm font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-1 active:scale-95"
+                            >
+                                ชำระเงินต่อ <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
             <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-md" onClick={onClose} />
@@ -590,19 +562,41 @@ export default function CheckoutModal({ onClose }) {
                         </div>
                     )}
                     {topupStep === 'SUCCESS' && (
-                        <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center">
-                            <div className="w-16 h-16 bg-[#eef8f2] text-[#52a675] rounded-full flex items-center justify-center mb-4"><span className="material-symbols-outlined text-4xl">check</span></div>
-                            <h2 className="text-2xl font-black text-stone-800 mb-1">เติมเงินสำเร็จ!</h2>
-                            <p className="text-stone-400 font-bold text-xs mb-6 tracking-wide">สลิปชั่วคราว - การเติมเงิน</p>
-                            <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl p-5 mb-6 text-sm font-bold text-stone-500 space-y-3">
-                                <div className="flex justify-between"><span>รหัสอ้างอิง:</span><span className="text-stone-800">{topupReceipt?.id}</span></div>
-                                <div className="flex justify-between"><span>ลูกค้า:</span><span className="text-stone-800">{selectedMember?.name}</span></div>
-                                <div className="flex justify-between"><span>ช่องทาง:</span><span className="text-[#861b00] uppercase">{topupReceipt?.paymentMethod}</span></div>
-                                <div className="border-t border-stone-200 border-dashed pt-3 mt-1 flex justify-between items-center"><span className="text-[#52a675] font-black">ยอดที่เติม:</span><span className="text-[#52a675] font-black text-lg">฿{topupReceipt?.amount.toLocaleString()}</span></div>
-                                <div className="bg-stone-200/50 p-2 rounded-lg flex justify-between items-center mt-2"><span>ยอดคงเหลือปัจจุบัน:</span><span className="text-stone-800">฿{(selectedMember?.wallet || 0).toLocaleString()}</span></div>
+                        <>
+                            {/* 🌟 1. เพิ่มคลาส print:hidden ที่ตัว Modal */}
+                            <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center print:hidden">
+                                <div className="w-16 h-16 bg-[#eef8f2] text-[#52a675] rounded-full flex items-center justify-center mb-4"><span className="material-symbols-outlined text-4xl">check</span></div>
+                                <h2 className="text-2xl font-black text-stone-800 mb-1">เติมเงินสำเร็จ!</h2>
+                                <p className="text-stone-400 font-bold text-xs mb-6 tracking-wide">สลิปชั่วคราว - การเติมเงิน</p>
+
+                                <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl p-5 mb-6 text-sm font-bold text-stone-500 space-y-3">
+                                    <div className="flex justify-between"><span>รหัสอ้างอิง:</span><span className="text-stone-800">{topupReceipt?.id}</span></div>
+                                    <div className="flex justify-between"><span>ลูกค้า:</span><span className="text-stone-800">{selectedMember?.name}</span></div>
+                                    <div className="flex justify-between"><span>ช่องทาง:</span><span className="text-[#861b00] uppercase">{topupReceipt?.paymentMethod}</span></div>
+                                    <div className="border-t border-stone-200 border-dashed pt-3 mt-1 flex justify-between items-center"><span className="text-[#52a675] font-black">ยอดที่เติม:</span><span className="text-[#52a675] font-black text-lg">฿{topupReceipt?.amount.toLocaleString()}</span></div>
+                                    <div className="bg-stone-200/50 p-2 rounded-lg flex justify-between items-center mt-2"><span>ยอดคงเหลือปัจจุบัน:</span><span className="text-stone-800">฿{(selectedMember?.wallet || 0).toLocaleString()}</span></div>
+                                </div>
+                                {/* 🌟 2. แบ่งเป็น 2 ปุ่ม: พิมพ์สลิป และ ชำระเงินต่อ */}
+                                <div className="flex gap-3 w-full">
+                                    {/* เปลี่ยนปุ่มพิมพ์สลิปในหน้า Success ของการเติมเงิน */}
+                                    <button
+                                        onClick={() => {
+                                            // 🌟 ใส่ Delay 300ms เพื่อให้ Component ReceiptPrintout เรนเดอร์ให้เสร็จก่อน
+                                            setTimeout(() => window.print(), 300);
+                                        }}
+                                        className="flex-1 py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 text-sm font-black rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-95"
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">print</span> พิมพ์สลิป
+                                    </button>
+                                    <button onClick={() => { resetTopupFlow(); setTimeout(() => { if (selectedMember && selectedMember.wallet >= netTotal) { setIsMemberPinFlow(true); setMemberPin(''); } }, 100); }} className="flex-[2] py-4 bg-[#861b00] hover:bg-black text-white text-sm font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-1 active:scale-95">
+                                        ชำระเงินต่อ <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                                    </button>
+                                </div>
                             </div>
-                            <button onClick={() => { resetTopupFlow(); setTimeout(() => { if (selectedMember && selectedMember.wallet >= netTotal) { setIsMemberPinFlow(true); setMemberPin(''); } }, 100); }} className="w-full py-4 bg-[#861b00] hover:bg-black text-white text-base font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95">กลับไปชำระเงินต่อ <span className="material-symbols-outlined text-[20px]">arrow_forward</span></button>
-                        </div>
+                            {/* 🌟 3. เรียกใช้ Component ใบเสร็จ (มันจะล่องหนอยู่ รอเครื่องปริ้นท์ดึงไปพิมพ์) */}
+                            <ReceiptPrintout txn={topupReceipt} />
+                            {topupReceipt && <ReceiptPrintout txn={topupReceipt} />}
+                        </>
                     )}
                 </div>
             )}

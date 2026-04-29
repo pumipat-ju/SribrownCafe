@@ -14,7 +14,7 @@ export function AppProvider({ children }) {
             { id: 'b', name: 'BRONZE', minSpent: 0, maxSpent: 999, discountPct: 0 },
             { id: 's', name: 'SILVER', minSpent: 1000, maxSpent: 4999, discountPct: 5 },
             { id: 'g', name: 'GOLD', minSpent: 5000, maxSpent: 14999, discountPct: 10 },
-            { id: 'p', name: 'PLATINUM', minSpent: 15000, maxSpent: null, discountPct: 15 }
+            { id: 'p', name: 'DIAMOND', minSpent: 15000, maxSpent: null, discountPct: 15 }
         ],
         promotions: [
             { id: 'p1', name: 'แก้วที่ 2 ลด 50%', targetCat: 'coffee', minQty: 2, discountPct: 50, active: false, eligibleFor: 'all', startDate: '', endDate: '', startTime: '', endTime: '' }
@@ -38,10 +38,16 @@ export function AppProvider({ children }) {
 
     // 3. ระบบสถานะของ POS (ตะกร้า และ การเปิดกะ)
     const [cart, setCart] = useState([]);
-    const [shift, setShift] = useState({
-        isOpen: false, startCash: 0, salesCash: 0, cashIn: 0, cashOut: 0
+    // 🌟 1. ดึงข้อมูลกะจาก LocalStorage ก่อน ถ้าไม่มีค่อยตั้งค่าเริ่มต้น
+    const [shift, setShift] = useState(() => {
+        const savedShift = localStorage.getItem('sribrown_shift');
+        return savedShift ? JSON.parse(savedShift) : { isOpen: false };
     });
-    
+    // 🌟 2. สั่งให้เซฟลง LocalStorage ทุกครั้งที่เปิดกะ/ปิดกะ หรือมีการเปลี่ยนค่า shift
+    useEffect(() => {
+        localStorage.setItem('sribrown_shift', JSON.stringify(shift));
+    }, [shift]);
+
     // 🌟 แก้ไข: โหลดข้อมูลพนักงานจาก localStorage (ถ้ามี)
     const [currentEmployee, setCurrentEmployee] = useState(() => {
         const saved = localStorage.getItem('sribrown_employee');
@@ -64,6 +70,8 @@ export function AppProvider({ children }) {
         fetchJSON('/employees').then(setEmployees).catch(e => console.error("Employee fetch error", e));
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
         fetchJSON('/categories').then(setCategories).catch(e => console.error("Category fetch error", e));
+
+        // 🌟 จุดที่ 1: เปลี่ยนจาก /menu เป็น /products เพื่อให้ตรงกับ Database
         fetchJSON('/menu').then(data => {
             setMenuItems(data.map(item => ({
                 id: item.id,
@@ -78,9 +86,11 @@ export function AppProvider({ children }) {
 
         fetchJSON('/transactions').then(data => {
             setTransactions(data.map(t => {
+                // 🌟 จุดที่ 2: ดึงเวลาที่เซฟใน DB (created_at) มาสร้าง dateRaw ให้ระบบคำนวณกะได้
                 const dt = new Date(t.created_at);
                 return {
                     ...t,
+                    dateRaw: t.created_at,
                     date: dt.toLocaleDateString('th-TH'),
                     time: dt.toLocaleTimeString('th-TH').slice(0, 5) + ' น.'
                 };
@@ -91,12 +101,46 @@ export function AppProvider({ children }) {
     // 🌟 โหลดข้อมูลครั้งแรก และตั้งเวลา Auto-Refresh (Polling)
     useEffect(() => {
         refreshData();
-        
+
         // ดึงข้อมูลใหม่ทุกๆ 10 วินาที
-        const interval = setInterval(refreshData, 10000); 
-        
+        const interval = setInterval(refreshData, 10000);
+
         return () => clearInterval(interval); // ล้าง Interval เมื่อปิดแอป
     }, []);
+
+    // 🌟 เพิ่มฟังก์ชันรันเลขบิลอัตโนมัติ
+    const generateBillId = (type, currentTransactions) => {
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${yy}${mm}${dd}`;
+
+        const prefixes = { SALE: 'SO', TOPUP: 'DP', EXPENSE: 'PV', INCOME: 'RV' };
+        const prefix = prefixes[type] || 'TXN';
+        const todayPrefix = `${prefix}-${dateStr}`;
+
+        // 1. กรองเฉพาะบิลของวันนี้และประเภทนี้
+        const todayTxns = (currentTransactions || []).filter(t => {
+            const targetId = String(t.bill_id || t.id || '');
+            return targetId.startsWith(todayPrefix);
+        });
+
+        // 2. หาเลขรันลำดับที่สูงที่สุด (เช่น จาก SO-260426-005 ดึงมาแค่ 5)
+        let maxNum = 0;
+        todayTxns.forEach(t => {
+            const targetId = String(t.bill_id || t.id || '');
+            const parts = targetId.split('-');
+            const lastPart = parseInt(parts[parts.length - 1]);
+            if (!isNaN(lastPart) && lastPart > maxNum) {
+                maxNum = lastPart;
+            }
+        });
+
+        // 3. เลขต่อไปคือเลขที่สูงที่สุด + 1
+        const nextNum = maxNum + 1;
+        return `${todayPrefix}-${String(nextNum).padStart(3, '0')}`;
+    };
 
     const value = {
         employees, setEmployees, currentEmployee, setCurrentEmployee,
@@ -107,7 +151,8 @@ export function AppProvider({ children }) {
         cart, setCart,
         shift, setShift,
         transactions, setTransactions,
-        marketing, setMarketing
+        marketing, setMarketing,
+        generateBillId // 👈 เติมคำนี้ลงไปเพื่อให้หน้าอื่นเรียกใช้ได้ครับ!
     };
 
     return (

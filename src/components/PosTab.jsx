@@ -4,7 +4,11 @@ import CheckoutModal from './CheckoutModal';
 
 export default function PosTab({ viewMode }) {
     const { categories, menuItems, optionGroups, cart, setCart } = useContext(AppContext);
-    const [activeCategory, setActiveCategory] = useState(categories[0]?.id || '');
+
+    // 🌟 1. ตั้งค่าเริ่มต้นให้หน้า POS โหลดสินค้าทั้งหมดขึ้นมาก่อน
+    const [activeCategory, setActiveCategory] = useState('all');
+
+    const [searchQuery, setSearchQuery] = useState('');
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -79,43 +83,98 @@ export default function PosTab({ viewMode }) {
                 <span className="font-black text-lg lg:text-xl border-l border-white/30 pl-3 lg:pl-4">฿{subtotal.toLocaleString()}</span>
             </button>
 
-            {/* 🗂️ Menu Grid */}
+            {/* 🗂️ Menu Grid Area */}
             <div className="w-full bg-white p-4 lg:p-6 rounded-[2.5rem] border border-stone-200 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden mt-2">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 pb-2 border-b border-stone-100 shrink-0">
-                    {categories.map(c => (
-                        <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 rounded-full text-xs font-bold transition-all ${activeCategory === c.id ? 'bg-[#861b00] text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}`}>{c.name}</button>
-                    ))}
+                {/* 🗂️ Categories & Search Bar */}
+                <div className="flex justify-between items-start sm:items-center gap-4 mb-5 pb-2 border-b border-stone-100 shrink-0">
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1">
+
+                        {/* 🌟 2. เพิ่มปุ่ม "ทั้งหมด" นำหน้าแท็บหมวดหมู่ */}
+                        <button
+                            onClick={() => { setActiveCategory('all'); setSearchQuery(''); }}
+                            className={`shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 rounded-full text-xs font-bold transition-all ${activeCategory === 'all' && !searchQuery ? 'bg-[#861b00] text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}`}
+                        >
+                            ทั้งหมด
+                        </button>
+
+                        {categories.map(c => (
+                            <button
+                                key={c.id}
+                                onClick={() => { setActiveCategory(c.id); setSearchQuery(''); }}
+                                className={`shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 rounded-full text-xs font-bold transition-all ${String(activeCategory) === String(c.id) && !searchQuery ? 'bg-[#861b00] text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}`}
+                            >
+                                {c.name}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative shrink-0 w-full sm:w-[220px] md:w-[260px]">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-[20px]">search</span>
+                        <input
+                            type="text"
+                            placeholder="ค้นหาเมนู (TH/EN)..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 rounded-[1rem] py-3 pl-10 pr-8 text-xs font-bold text-stone-700 outline-none focus:border-[#861b00] focus:bg-white transition-all shadow-sm placeholder:text-stone-300"
+                        />
+                        {searchQuery && (
+                            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-600 flex items-center">
+                                <span className="material-symbols-outlined text-[16px]">close</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 lg:gap-4 content-start overflow-y-auto no-scrollbar flex-1 pb-28 px-1 pt-1">
-                    {menuItems.filter(m => m.cat === activeCategory).map(item => {
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3 lg:gap-4 content-start overflow-y-auto no-scrollbar flex-1 pb-32 px-1 pt-1 min-h-0">
+                    {/* 🌟 3. ปรับ Logic การกรองสินค้าให้รองรับเงื่อนไข 'all' */}
+                    {menuItems.filter(m => {
+                        // 1. เช็คหมวดหมู่ (ถ้าเป็น 'all' ให้ผ่าน, ถ้าไม่ใช่ ให้รหัสตรงกัน)
+                        const categoryMatch = activeCategory === 'all' || String(m.cat) === String(activeCategory);
+
+                        // 2. เช็คการค้นหาด้วยคำ (ถ้ามี)
+                        let searchMatch = true;
+                        if (searchQuery) {
+                            const query = searchQuery.toLowerCase();
+                            const matchTH = (m.name_th || m.name || '').toLowerCase().includes(query);
+                            const matchEN = (m.name_en || '').toLowerCase().includes(query);
+                            searchMatch = matchTH || matchEN;
+                        }
+
+                        // แสดงเมื่อผ่านทั้ง 2 เงื่อนไข
+                        return categoryMatch && searchMatch;
+
+                    }).map(item => {
                         const qty = cart.filter(c => c.id === item.id).reduce((s, c) => s + c.qty, 0);
                         return (
-                            <button key={item.id} onClick={() => handleItemClick(item)} className="bg-white rounded-[1.5rem] p-2 lg:p-2.5 border border-stone-100 shadow-sm hover:shadow-[0_12px_24px_-8px_rgba(134,27,0,0.15)] hover:border-amber-300 transition-all flex flex-col active:scale-95 group text-left relative overflow-hidden">
+                            <button key={item.id} onClick={() => handleItemClick(item)} className="bg-white rounded-[1.5rem] p-3 border border-stone-100 shadow-sm hover:shadow-[0_12px_24px_-8px_rgba(134,27,0,0.15)] hover:border-amber-300 transition-all flex flex-col active:scale-95 group text-left relative h-full w-full">
+
                                 {qty > 0 && <div className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full shadow-md border-2 border-white z-10 animate-in zoom-in">{qty}</div>}
 
-                                {/* Square Image/Color Box */}
-                                <div className={`w-full aspect-square rounded-[1rem] mb-2 flex items-center justify-center overflow-hidden relative transition-colors ${(!item.image || viewMode === 'color') ? (item.color || 'bg-stone-200') : 'bg-stone-50'}`}>
+                                <div className={`w-full shrink-0 aspect-square rounded-[1rem] mb-3 flex items-center justify-center overflow-hidden relative transition-colors ${(!item.image || viewMode === 'color') ? (item.color || 'bg-stone-200') : 'bg-stone-50'}`}>
                                     {(viewMode === 'image' && item.image) ? (
                                         <img src={item.image} alt={item.name_th} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                                     ) : (
-                                        /* 🌟 เปลี่ยนจากตัวย่อ 1 ตัวอักษร เป็นชื่อเต็มๆ พร้อมจำกัดไม่ให้ล้นกล่อง */
                                         <span className="font-black text-sm lg:text-base text-black/20 uppercase tracking-tight group-hover:scale-110 transition-transform duration-300 text-center px-3 leading-snug line-clamp-3">
                                             {item.name_th || item.name || '?'}
                                         </span>
                                     )}
                                 </div>
 
-                                {/* Title and Price in same line */}
-                                <div className="px-1 flex-1 flex flex-col justify-end w-full">
-                                    <div className="flex justify-between items-start gap-1 w-full mt-1">
-                                        <div className="flex flex-col flex-1 min-w-0 pr-1">
-                                            <h4 className="font-bold text-stone-800 text-[12px] lg:text-[13px] leading-tight truncate group-hover:text-[#861b00] transition-colors">{item.name_th || item.name}</h4>
-                                            {item.name_en && <p className="text-[9px] lg:text-[10px] font-medium text-stone-400 mt-0.5 truncate uppercase tracking-tight">{item.name_en}</p>}
-                                        </div>
-                                        <div className="shrink-0 pt-0.5">
-                                            <span className="font-black text-[#861b00] text-[13px] lg:text-[14px] group-hover:text-amber-600 transition-colors">฿{item.price.toLocaleString()}</span>
-                                        </div>
+                                <div className="w-full flex items-center justify-between mt-auto">
+                                    <div className="w-3/4 flex flex-col pr-2 overflow-hidden">
+                                        <h4 className="font-bold text-stone-800 text-[13px] truncate group-hover:text-[#861b00] transition-colors" title={item.name_th || item.name}>
+                                            {item.name_th || item.name}
+                                        </h4>
+                                        {item.name_en && (
+                                            <p className="text-[10px] font-medium text-stone-400 truncate uppercase tracking-tight mt-0.5" title={item.name_en}>
+                                                {item.name_en}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="w-1/4 text-right shrink-0 flex justify-end items-center">
+                                        <span className="font-black text-[#861b00] text-[14px] group-hover:text-amber-600 transition-colors">
+                                            ฿{item.price.toLocaleString()}
+                                        </span>
                                     </div>
                                 </div>
                             </button>

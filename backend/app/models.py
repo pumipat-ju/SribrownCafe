@@ -52,12 +52,15 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    bill_id = Column(String(50), nullable=True)
     type = Column(String(255), nullable=False)      # SALE / EXPENSE / TOPUP / INCOME
     amount = Column(Float, nullable=False)
     method = Column(String(255), nullable=True)     # CASH / QR / WALLET
     desc = Column(Text, nullable=True)
     cashier = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    date_raw = Column(String(255), nullable=True)
+    items = Column(Text, nullable=True)
 
 
 class InventoryItem(Base):

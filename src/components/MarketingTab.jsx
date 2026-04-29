@@ -207,13 +207,13 @@ export default function MarketingTab() {
     const getTierStyle = (tierName) => {
         const name = tierName?.toLowerCase() || '';
 
-        // 💎 ดักจับ Diamond ให้เป็นธีมเพชรสีน้ำเงินพาสเทล พร้อมเปลี่ยนไอคอนเป็นรูปเพชร
+        // 💎 ดักจับ Diamond/Platinum ให้เป็นธีมสีน้ำเงินพาสเทล พร้อมเปลี่ยนไอคอนเป็นรูปเหรียญ
         if (name.includes('diamond') || name.includes('platinum')) return {
             bg: 'from-blue-100 to-blue-200',
             text: 'text-blue-700',
             border: 'border-blue-300',
             nameColor: 'text-blue-700',
-            icon: 'diamond' // ใช้ไอคอนรูปเพชร
+            icon: 'workspace_premium' // 🌟 แก้จาก 'diamond' เป็น 'workspace_premium'
         };
         if (name.includes('gold')) return {
             bg: 'from-yellow-100 via-yellow-200 to-amber-300',
