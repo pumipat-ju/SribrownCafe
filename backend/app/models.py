@@ -61,6 +61,11 @@ class Transaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     date_raw = Column(String(255), nullable=True)
     items = Column(Text, nullable=True)
+    subtotal = Column(Float, nullable=True, default=0.0)
+    discount = Column(Float, nullable=True, default=0.0)
+    promotionName = Column(String, nullable=True)
+    beforeVat = Column(Float, nullable=True, default=0.0)
+    vatAmount = Column(Float, nullable=True, default=0.0)
 
 
 class InventoryItem(Base):

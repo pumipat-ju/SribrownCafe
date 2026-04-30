@@ -40,9 +40,21 @@ export default function PosTab({ viewMode }) {
         const optionText = optionValues.join(', ');
         const cartKey = `${item.id}-${optionText}`;
         const finalPrice = item.price + Object.values(options).reduce((s, o) => s + (o.p || 0), 0);
+        const categoryName = categories.find(c => String(c.id) === String(item.cat))?.name || 'อื่นๆ';
         const existing = cart.find(c => c.cartKey === cartKey);
-        if (existing) { setCart(cart.map(c => c.cartKey === cartKey ? { ...c, qty: c.qty + qty } : c)); }
-        else { setCart([...cart, { ...item, cartKey, options: optionText, price: finalPrice, qty }]); }
+        if (existing) {
+            setCart(cart.map(c => c.cartKey === cartKey ? { ...c, qty: c.qty + qty } : c));
+        } else {
+            setCart([...cart, {
+                ...item,
+                cartKey,
+                options: optionText,
+                price: finalPrice,
+                qty,
+                category: categoryName
+            }]);
+        }
+
         setSelectedItem(null);
     };
 

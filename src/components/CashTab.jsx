@@ -46,52 +46,66 @@ export default function CashTab() {
         return isCash && isCurrentShift;
     }).sort((a, b) => new Date(b.date_raw || b.created_at) - new Date(a.date_raw || a.created_at));
 
-    // 🌟 เปลี่ยนเป็น async function เพื่อรองรับการเซฟลง DB
+    // 🌟 เปลี่ยนเป็น async function เพื่อรองรับการเซฟลง DB (แก้ Payload ให้ตรงกับ Backend ป้องกัน 500 Error)
     const handleSave = async () => {
         const amount = parseFloat(formData.amount);
         if (!amount || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้องครับ');
         if (!shift?.isOpen) return alert('กรุณาเปิดกะก่อนบันทึกรายการครับ');
 
         const now = new Date();
-        const txnType = modalMode === 'expense' ? 'EXPENSE' : 'INCOME';
+        const isIncome = modalMode === 'income';
+        const txnType = isIncome ? 'INCOME' : 'EXPENSE';
 
         // 🌟 1. เจน ID บิลตามฟอร์แมตใหม่ (เช่น EXP-240426-001)
         const newBillId = generateBillId(txnType, transactions);
 
-        const newTxn = {
+        // 🌟 2. สร้าง Payload ที่ "ตรงเป๊ะ" กับ schemas.TransactionCreate ใน Backend
+        const txnPayload = {
             bill_id: newBillId,
-            date_raw: now.toISOString(),
             type: txnType,
+            amount: amount, // เก็บค่าเป็นบวกเสมอ (Backend ชอบค่าบวก แล้วเราใช้ Type แยกเอา)
             method: 'CASH',
-            dateRaw: now.toISOString(),
             desc: `${formData.category}${formData.note ? ` - ${formData.note}` : ''}`,
-            amount: modalMode === 'expense' ? -amount : amount,
             cashier: currentEmployee?.name || 'System',
+            date_raw: now.toISOString(),
+            // 🎯 จุดสำคัญ: ต้องแนบ items ไปด้วย Backend จะได้ไม่ Error 500
+            items: JSON.stringify([{
+                name: isIncome ? 'นำเงินเข้าเก๊ะ' : 'นำเงินออกเก๊ะ',
+                qty: 1,
+                price: amount
+            }])
+        };
+
+        const newTxn = {
+            ...txnPayload,
+            id: newBillId, // รหัสจำลองสำหรับใช้ใน React ก่อนได้ ID จริง
             time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
             date: now.toLocaleDateString('th-TH')
         };
 
-        // 🌟 2. บันทึกลง Database ทันที (ป้องกันรีเฟรชแล้วหาย)
         try {
-            await fetchJSON('/transactions/', {
+            // 🌟 3. บันทึกลง Database ทันที (พร้อมส่ง Payload ที่ถูกต้อง)
+            const savedTxn = await fetchJSON('/transactions/', {
                 method: 'POST',
-                body: JSON.stringify(newTxn)
+                body: JSON.stringify(txnPayload)
             });
+
+            // 🌟 4. อัปเดต State ต่างๆ ในเครื่อง
+            setShift(prev => ({
+                ...prev,
+                cashIn: isIncome ? (prev.cashIn || 0) + amount : (prev.cashIn || 0),
+                cashOut: !isIncome ? (prev.cashOut || 0) + amount : (prev.cashOut || 0),
+            }));
+
+            // ใช้ข้อมูลที่ตอบกลับมาจาก DB ถ้ามี ไม่งั้นใช้ newTxn ที่สร้างไว้
+            setTransactions(prev => [savedTxn || newTxn, ...prev]);
+            setFormData({ category: 'อื่นๆ', note: '', amount: '' });
+            setModalMode(null);
+
         } catch (e) {
             console.error("Failed to save transaction to DB:", e);
-            // ถึงเซฟ DB พลาด แต่เรายังอัปเดตหน้าจอให้พนักงานทำงานต่อได้
+            alert("ไม่สามารถบันทึกรายการได้: " + e.message);
         }
-
-        // 🌟 3. อัปเดต State ต่างๆ ในเครื่อง
-        setShift(prev => ({
-            ...prev,
-            cashIn: modalMode === 'income' ? (prev.cashIn || 0) + amount : (prev.cashIn || 0),
-            cashOut: modalMode === 'expense' ? (prev.cashOut || 0) + amount : (prev.cashOut || 0),
-        }));
-
-        setTransactions(prev => [newTxn, ...prev]);
-        setFormData({ category: 'อื่นๆ', note: '', amount: '' });
-        setModalMode(null);
     };
 
     // เพิ่มฟังก์ชันนี้ไว้ใน CashTab() ก่อนส่วน return

@@ -31,14 +31,14 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
             </style>
 
             {/* ======================================================== */}
-            {/* 📊 โหมด: Z-REPORT / X-REPORT (รูปแบบ FoodStory เต็มยศ) */}
+            {/* 📊 โหมด: Z-REPORT / X-REPORT (รูปแบบ Sribrown POS เต็มยศ) */}
             {/* ======================================================== */}
             {txn.type === 'Z_REPORT' || txn.type === 'SHIFT_CLOSE' || txn.type === 'X_REPORT' ? (
                 <div className="print-only-receipt font-mono-print">
 
                     {/* 1. Header */}
                     <div className="text-center mb-4">
-                        <h1 className="font-bold text-[18px] leading-tight mb-1">FoodStory POS</h1>
+                        <h1 className="font-bold text-[18px] leading-tight mb-1">Sribrown POS</h1>
                         <p className="text-[10px] mb-2">Print Time: {new Date().toLocaleString('th-TH')}</p>
                         <h2 className="font-bold text-[14px] mb-2">
                             {txn.type === 'X_REPORT' ? 'X-Report (รายงานระหว่างกะ)' : 'End Drawer Report'}
@@ -58,31 +58,25 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
                         )}
                     </div>
 
-                    {/* 2. Sales by Group */}
-                    <div className="mb-3 text-[11px]">
-                        <h3 className="font-bold mb-1 underline">Sales by Group</h3>
-                        {txn.salesByGroup && Object.entries(txn.salesByGroup).map(([group, data]) => (
-                            <div key={group} className="flex justify-between">
-                                <span className="w-[45%] truncate">{group}</span>
-                                <span className="w-[15%] text-center">{data.qty}</span>
-                                <span className="w-[40%] text-right">{data.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 3. Sales by Category */}
+                    {/* 2. Sales by Category */}
                     <div className="mb-3 text-[11px]">
                         <h3 className="font-bold mb-1 underline">Sales by Category</h3>
-                        {txn.salesByCategory && Object.entries(txn.salesByCategory).map(([cat, data]) => (
-                            <div key={cat} className="flex justify-between">
-                                <span className="w-[45%] pl-2 truncate">{cat}</span>
-                                <span className="w-[15%] text-center">{data.qty}</span>
-                                <span className="w-[40%] text-right">{data.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        ))}
+                        {Object.entries(txn.salesByCategory || {}).length > 0 ? (
+                            Object.entries(txn.salesByCategory).map(([cat, data]) => (
+                                <div key={cat} className="flex justify-between">
+                                    <span className="w-[45%] pl-2 truncate">{cat}</span>
+                                    <span className="w-[15%] text-center">{data.qty}</span>
+                                    <span className="w-[40%] text-right">
+                                        {(data.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-[10px] pl-2 italic text-stone-400">ไม่มีข้อมูลหมวดหมู่</p>
+                        )}
                     </div>
 
-                    {/* 4. Sales Summary */}
+                    {/* 3. Sales Summary */}
                     <div className="mb-3 text-[11px] border-t border-b border-black border-dashed py-2 space-y-0.5">
                         <div className="flex justify-between"><span>Sub Total</span><span>{(txn.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
                         <div className="flex justify-between"><span>Discount</span><span>-{(txn.totalDiscount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
@@ -96,7 +90,7 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
                         <div className="flex justify-between"><span>Average Trans</span><span>{(txn.avgTrans || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
                     </div>
 
-                    {/* 5. Sales by Channel */}
+                    {/* 4. Sales by Channel */}
                     <div className="mb-3 text-[11px]">
                         <h3 className="font-bold mb-1 underline">Sales by Channel</h3>
                         <p className="font-bold">Restaurant</p>
@@ -107,35 +101,41 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
                         </div>
                     </div>
 
-                    {/* 6. Discount & Promotion */}
+                    {/* 🌟 5. Discount & Promotion (ปรับ Format ใหม่ 3 คอลัมน์เป๊ะๆ) */}
                     <div className="mb-3 text-[11px] border-t border-black border-dashed pt-2">
                         <h3 className="font-bold mb-1 underline">Discount & Promotion</h3>
                         {txn.discountsBreakdown && Object.keys(txn.discountsBreakdown).length > 0 ? (
-                            Object.entries(txn.discountsBreakdown).map(([name, data]) => (
-                                <div key={name} className="flex justify-between">
-                                    <span className="w-[50%] truncate">{name}</span>
-                                    <span className="w-[10%] text-center">{data.count}</span>
-                                    <span className="w-[40%] text-right">-{data.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <>
+                                {Object.entries(txn.discountsBreakdown).map(([name, data]) => (
+                                    <div key={name} className="flex text-[11px] w-full mb-0.5">
+                                        <span className="flex-1 truncate">- {name}</span>
+                                        <span className="w-16 text-right">({data.count} บิล)</span>
+                                        <span className="w-16 text-right font-mono-print">{(data.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                ))}
+                                <div className="flex justify-between font-bold text-[11px] mt-1 pt-1 border-t border-black border-dashed">
+                                    <span>รวมส่วนลดทั้งหมด</span>
+                                    <span>{(txn.totalDiscount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
-                            ))
+                            </>
                         ) : (
                             <p className="text-center italic">ไม่มีส่วนลดในกะนี้</p>
                         )}
                     </div>
 
-                    {/* 7. Payment */}
+                    {/* 6. Payment */}
                     <div className="mb-3 text-[11px] border-t border-black border-dashed pt-2">
                         <h3 className="font-bold mb-1 underline">Payment</h3>
                         <div className="flex justify-between"><span>By Cash</span><span>{(txn.salesCash || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span>By Credit card</span><span>0.00</span></div>
-                        <div className="flex justify-between"><span>By QR payment</span><span>{(txn.salesOther || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between font-bold mt-1">
+                        <div className="flex justify-between"><span>By QR payment</span><span>{(txn.salesQr || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between"><span>By E-Wallet</span><span>{(txn.salesWallet || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between font-bold mt-1 pt-1 border-t border-black border-dashed">
                             <span>Total Revenue payment</span>
-                            <span>{((txn.salesCash || 0) + (txn.salesOther || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span>{((txn.salesCash || 0) + (txn.salesQr || 0) + (txn.salesWallet || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                     </div>
 
-                    {/* 8. Drawer */}
+                    {/* 7. Drawer */}
                     <div className="mb-3 text-[11px] border-t border-black border-dashed pt-2">
                         <h3 className="font-bold mb-1 underline">Drawer</h3>
                         <div className="flex justify-between"><span>Start Drawer</span><span>{(txn.startCash || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
@@ -155,14 +155,14 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
                         <div className="flex justify-between mt-1"><span>Total Bills</span><span>{txn.totalBills || 0}</span></div>
                     </div>
 
-                    {/* 9. Void & Cancel */}
+                    {/* 8. Void & Cancel */}
                     <div className="mb-6 text-[11px] border-t border-b border-black border-dashed py-2">
                         <h3 className="font-bold mb-1 underline">Void & Cancel</h3>
                         <div className="flex justify-between"><span>Void All</span><span className="w-8 text-center">0</span><span className="w-16 text-right">0.00</span></div>
                         <div className="flex justify-between"><span>Cancel Bill</span><span className="w-8 text-center">0</span><span className="w-16 text-right">0.00</span></div>
                     </div>
 
-                    {/* 10. Signatures */}
+                    {/* 9. Signatures */}
                     <div className="space-y-8 text-center text-[11px]">
                         <div>
                             <p>.......................................</p>

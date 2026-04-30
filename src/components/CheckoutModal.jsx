@@ -54,16 +54,24 @@ export default function CheckoutModal({ onClose }) {
         const memberTier = getMemberTier(selectedMember.points || 0);
         if (memberTier && memberTier.discountPct > 0) {
             appliedTierName = memberTier.name;
+            // คำนวณส่วนลดเบื้องต้นก่อน
             discount += (subtotal - discount) * (memberTier.discountPct / 100);
         }
     }
     discount = Math.min(discount, subtotal);
 
-    const netTotal = subtotal - discount;
+    // 🌟 1. คำนวณยอดสุทธิเบื้องต้น
+    let rawNetTotal = subtotal - discount;
+
+    // 🌟 2. สูตรสายใจป๋า: ปัดยอดสุทธิลงเป็น "จำนวนเต็มบาท" เสมอ (เช่น 139.50 ปัดลงเหลือ 139.00)
+    const netTotal = Math.floor(rawNetTotal);
+
+    // 🌟 3. ปรับยอดส่วนลดให้ตรงกับยอดสุทธิที่ปัดเศษแล้ว (เพื่อให้บัญชี Subtotal - Discount = Net Total เป๊ะๆ)
+    discount = subtotal - netTotal;
+
     const beforeVat = (netTotal * 100) / 107;
     const vatAmount = netTotal - beforeVat;
     const change = receivedAmount ? parseFloat(receivedAmount) - netTotal : 0;
-
     const missingWalletAmount = selectedMember ? Math.max(0, netTotal - (selectedMember.wallet || 0)) : 0;
 
     // ==========================================
@@ -106,12 +114,21 @@ export default function CheckoutModal({ onClose }) {
             ? `ขายให้: ${selectedMember.name} (${itemSummary})`
             : `ขายทั่วไป: ${itemSummary}`;
 
+        // 🌟 1. ดักจับ "ชื่อส่วนลด" ว่าลดเพราะคูปอง หรือ ลดเพราะระดับสมาชิก
+        let appliedPromoName = '';
+        if (appliedCoupon) {
+            appliedPromoName = `คูปอง ${appliedCoupon.name}`;
+        } else if (appliedTierName) {
+            appliedPromoName = `ส่วนลดสมาชิกระดับ ${appliedTierName}`;
+        }
+
         const transactionData = {
             bill_id: generateBillId('SALE', transactions),
             type: 'SALE',
             amount: netTotal,
             subtotal: subtotal,
             discount: discount,
+            promotionName: appliedPromoName, // 🌟 2. แปะป้ายชื่อโปรโมชั่นเข้าไปในบิล!
             beforeVat: beforeVat,
             vatAmount: vatAmount,
             paymentMethod: method,
@@ -123,8 +140,6 @@ export default function CheckoutModal({ onClose }) {
             time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
             desc: descText,
             cashier: currentEmployee?.name || 'Staff',
-
-            // 🌟 สิ่งที่ต้องเพิ่ม: แปลง Array ตะกร้าสินค้าเป็น String เพื่อเก็บลง DB
             items: JSON.stringify(cart)
         };
 
@@ -369,7 +384,7 @@ export default function CheckoutModal({ onClose }) {
                             <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pr-2 pb-2">
                                 <div><label className="text-[11px] font-bold text-stone-500 mb-1 block uppercase tracking-wider">ชื่อลูกค้า / นิติบุคคล <span className="text-red-500">*</span></label><input required autoFocus value={taxForm.name} onChange={e => setTaxForm({ ...taxForm, name: e.target.value })} className="w-full p-3.5 border-2 border-stone-200 bg-stone-50 rounded-xl font-bold text-stone-800 outline-none focus:border-[#861b00] focus:bg-white transition-colors" placeholder="บริษัท ... จำกัด หรือ ชื่อ-นามสกุล" /></div>
                                 <div><label className="text-[11px] font-bold text-stone-500 mb-1 block uppercase tracking-wider">เลขประจำตัวผู้เสียภาษี (13 หลัก) <span className="text-red-500">*</span></label><input required maxLength="13" value={taxForm.taxId} onChange={e => setTaxForm({ ...taxForm, taxId: e.target.value.replace(/\D/g, '') })} className="w-full p-3.5 border-2 border-stone-200 bg-stone-50 rounded-xl font-bold text-stone-800 outline-none focus:border-[#861b00] focus:bg-white transition-colors" placeholder="0123456789012" /></div>
-                                <div><label className="text-[11px] font-bold text-stone-500 mb-2 block uppercase tracking-wider">สาขาสถานประกอบการ <span className="text-red-500">*</span></label>
+                                <div><label className="text-[11px] font-bold text-stone-500 mb-2 block uppercase tracking-wider">สาขาสถานประกอบการ <span className="text-red-500">*</span></label><input required maxLength="5" value={taxForm.branchId} onChange={e => setTaxForm({ ...taxForm, branchId: e.target.value.replace(/\D/g, '') })} className="w-full p-3.5 border-2 border-stone-200 bg-stone-50 rounded-xl font-bold text-stone-800 outline-none focus:border-[#861b00] focus:bg-white transition-colors" placeholder="00001" />
                                     <div className="flex gap-4 p-3 bg-stone-50 border border-stone-200 rounded-xl">
                                         <label className="flex items-center gap-2 text-sm font-bold text-stone-700 cursor-pointer"><input type="radio" name="branch" value="HQ" checked={taxForm.branch === 'HQ'} onChange={() => setTaxForm({ ...taxForm, branch: 'HQ' })} className="text-[#861b00] focus:ring-[#861b00] w-4 h-4" /> สำนักงานใหญ่</label>
                                         <label className="flex items-center gap-2 text-sm font-bold text-stone-700 cursor-pointer"><input type="radio" name="branch" value="BRANCH" checked={taxForm.branch === 'BRANCH'} onChange={() => setTaxForm({ ...taxForm, branch: 'BRANCH' })} className="text-[#861b00] focus:ring-[#861b00] w-4 h-4" /> สาขา</label>

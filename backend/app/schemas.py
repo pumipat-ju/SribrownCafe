@@ -100,6 +100,11 @@ class TransactionBase(BaseModel):
     desc: Optional[str] = None
     cashier: Optional[str] = None
     items: Optional[str] = None
+    subtotal: Optional[float] = 0.0
+    discount: Optional[float] = 0.0
+    promotionName: Optional[str] = None
+    beforeVat: Optional[float] = 0.0
+    vatAmount: Optional[float] = 0.0
 
 
 class TransactionCreate(TransactionBase):
