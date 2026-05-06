@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { fetchJSON } from '../api.js';
 
 // นำเข้าแท็บต่างๆ
@@ -30,7 +30,8 @@ export default function AdminPage() {
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, actualCash: 0 });
 
     // --- UI States ---
-    const [activeTab, setActiveTab] = useState('pos-menu');
+    const location = useLocation();
+    const activeTab = location.pathname.split('/').pop() || 'pos-menu';
     const [isNavOpen, setIsNavOpen] = useState(false);
     const [timeStr, setTimeStr] = useState('');
 
@@ -108,7 +109,7 @@ export default function AdminPage() {
         }
 
         const startTimeStamp = new Date(shift.startTime).getTime();
-        const currentShiftTxns = transactions.filter(t => getTxnDate(t).getTime() >= startTimeStamp);
+        const currentShiftTxns = transactions.filter(t => getTxnDate(t).getTime() >= startTimeStamp && t.status !== 'VOIDED');
 
         let salesCash = 0, salesQr = 0, salesWallet = 0;
         let topupCash = 0, topupQr = 0;
@@ -369,7 +370,7 @@ export default function AdminPage() {
                 </div>
                 <nav className="flex-1 overflow-y-auto p-4 space-y-1">
                     {navItems.map(item => (
-                        <button key={item.id} onClick={() => { setActiveTab(item.id); setIsNavOpen(false); }} className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl text-[13px] font-bold transition-all ${activeTab === item.id ? 'bg-white shadow-md text-[#861b00]' : 'text-stone-500 hover:bg-white'}`}>
+                        <button key={item.id} onClick={() => { navigate('/admin/' + item.id); setIsNavOpen(false); }} className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl text-[13px] font-bold transition-all ${activeTab === item.id ? 'bg-white shadow-md text-[#861b00]' : 'text-stone-500 hover:bg-white'}`}>
                             <span className="material-symbols-outlined text-[20px]">{item.icon}</span>{item.label}
                         </button>
                     ))}
@@ -398,13 +399,17 @@ export default function AdminPage() {
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar">
                     <div key={activeTab} className="h-full animate-in fade-in zoom-in-95 duration-500">
-                        {activeTab === 'dashboard' && <DashboardTab />}
-                        {activeTab === 'pos-menu' && <PosMenuTab />}
-                        {activeTab === 'history' && <HistoryTab />}
-                        {activeTab === 'crm' && <CRMTab />}
-                        {activeTab === 'employees' && <EmployeesTab />}
-                        {activeTab === 'cash' && <CashTab />}
-                        {activeTab === 'inventory' && <InventoryTab />}
+                        <Routes>
+                            <Route path="dashboard" element={<DashboardTab />} />
+                            <Route path="pos-menu" element={<PosMenuTab />} />
+                            <Route path="history" element={<HistoryTab />} />
+                            <Route path="crm" element={<CRMTab />} />
+                            <Route path="employees" element={<EmployeesTab />} />
+                            <Route path="cash" element={<CashTab />} />
+                            <Route path="inventory" element={<InventoryTab />} />
+                            {/* Default path redirects to Dashboard or Menu */}
+                            <Route path="/" element={<Navigate to="pos-menu" replace />} />
+                        </Routes>
                     </div>
                 </main>
             </div>

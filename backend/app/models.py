@@ -66,6 +66,8 @@ class Transaction(Base):
     promotionName = Column(String, nullable=True)
     beforeVat = Column(Float, nullable=True, default=0.0)
     vatAmount = Column(Float, nullable=True, default=0.0)
+    status = Column(String(50), default="COMPLETED")
+    void_reason = Column(Text, nullable=True)
 
 
 class InventoryItem(Base):
@@ -77,3 +79,31 @@ class InventoryItem(Base):
     quantity = Column(Float, default=0)
     unit = Column(String(255), nullable=True)
     min_level = Column(Float, default=0)
+
+class Promotion(Base):
+    __tablename__ = "promotions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    targetCategories = Column(String(255), nullable=True) # json string
+    targetItems = Column(String(255), nullable=True) # json string
+    minQty = Column(Integer, default=1)
+    discountValue = Column(Float, default=0.0)
+    discountType = Column(String(50), default="pct")
+    active = Column(Integer, default=1)
+    eligibleFor = Column(String(50), default="all")
+    startDate = Column(String(50), nullable=True)
+    endDate = Column(String(50), nullable=True)
+    startTime = Column(String(50), nullable=True)
+    endTime = Column(String(50), nullable=True)
+    daysOfWeek = Column(String(255), nullable=True) # json string
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    type = Column(String(50), nullable=False)
+    value = Column(Float, default=0.0)
+    icon = Column(String(50), default="sell")
+    eligibleFor = Column(String(50), default="all")

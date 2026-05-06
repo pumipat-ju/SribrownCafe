@@ -1,9 +1,10 @@
 import React, { useContext, useState, useMemo, useRef, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import ReceiptPrintout from '../components/ReceiptPrintout';
+import { fetchJSON } from '../api';
 
 export default function HistoryTab() {
-  const { transactions } = useContext(AppContext);
+  const { transactions, setTransactions } = useContext(AppContext);
 
   // --- States สำหรับตัวกรองเดิม ---
   const [filter, setFilter] = useState('ALL');
@@ -22,6 +23,13 @@ export default function HistoryTab() {
 
   // 🌟 3. State สำหรับสั่งพิมพ์ใบเสร็จแบบ Shared Component
   const [selectedPrintTxn, setSelectedPrintTxn] = useState(null);
+
+  // 🌟 4. State สำหรับระบบ Void Bill
+  const [showVoidModal, setShowVoidModal] = useState(false);
+  const [voidPin, setVoidPin] = useState('');
+  const [voidError, setVoidError] = useState('');
+  const [voidReason, setVoidReason] = useState('');
+  const [isVoiding, setIsVoiding] = useState(false);
 
   // ปิด Dropdown เมื่อคลิกข้างนอก
   useEffect(() => {
@@ -91,6 +99,35 @@ export default function HistoryTab() {
     }, 300);
   };
 
+  // 🌟 ฟังก์ชันยกเลิกบิล (Void Bill)
+  const handleVoidSubmit = async (e) => {
+    e.preventDefault();
+    setVoidError('');
+    setIsVoiding(true);
+    
+    try {
+      console.log('Voiding transaction:', viewingTxn.id, 'with PIN:', voidPin, 'Reason:', voidReason);
+      const updatedTxn = await fetchJSON(`/transactions/${viewingTxn.id}/void/`, {
+        method: 'PUT',
+        body: JSON.stringify({ pin: voidPin, reason: voidReason })
+      });
+      console.log('Void success:', updatedTxn);
+      
+      // อัปเดตข้อมูลในระบบทันที
+      setTransactions(prev => prev.map(t => t.id === updatedTxn.id ? { ...t, status: 'VOIDED', void_reason: updatedTxn.void_reason } : t));
+      
+      // ปิด modal ต่างๆ
+      setShowVoidModal(false);
+      setVoidPin('');
+      setVoidReason('');
+      setViewingTxn({ ...viewingTxn, status: 'VOIDED', void_reason: updatedTxn.void_reason });
+    } catch (err) {
+      setVoidError(err.message || 'รหัส PIN ไม่ถูกต้อง หรือไม่มีสิทธิ์ทำรายการ');
+    } finally {
+      setIsVoiding(false);
+    }
+  };
+
   // ==========================================
   // 🔍 ขบวนการกรองข้อมูล (Multi-stage Filtering)
   // ==========================================
@@ -105,7 +142,17 @@ export default function HistoryTab() {
 
       let dateMatch = false;
       try {
-        const txDate = new Date(txDateStr);
+        let txDate;
+        if (typeof txDateStr === 'string' && txDateStr.includes(' ') && !txDateStr.includes('T')) {
+          txDate = new Date(txDateStr.replace(' ', 'T'));
+        } else {
+          txDate = new Date(txDateStr);
+        }
+
+        if (isNaN(txDate.getTime())) {
+          throw new Error("Invalid date");
+        }
+
         const txDateIsoStr = txDate.toISOString().split('T')[0];
 
         if (dateFilterType === 'DAY') dateMatch = txDateIsoStr.startsWith(baseDate) || txDateStr.startsWith(baseDate);
@@ -142,9 +189,9 @@ export default function HistoryTab() {
     });
   }, [transactions, dateFilterType, baseDate, filter, searchTerm]);
 
-  const sumSale = finalFilteredData.filter(t => t.type === 'SALE' || !t.type).reduce((s, t) => s + parseFloat(t.amount || t.total || 0), 0);
-  const sumExp = finalFilteredData.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Math.abs(parseFloat(t.amount || t.total || 0)), 0);
-  const sumTopup = finalFilteredData.filter(t => t.type === 'TOPUP').reduce((s, t) => s + parseFloat(t.amount || t.total || 0), 0);
+  const sumSale = finalFilteredData.filter(t => (t.type === 'SALE' || !t.type) && t.status !== 'VOIDED').reduce((s, t) => s + parseFloat(t.amount || t.total || 0), 0);
+  const sumExp = finalFilteredData.filter(t => t.type === 'EXPENSE' && t.status !== 'VOIDED').reduce((s, t) => s + Math.abs(parseFloat(t.amount || t.total || 0)), 0);
+  const sumTopup = finalFilteredData.filter(t => t.type === 'TOPUP' && t.status !== 'VOIDED').reduce((s, t) => s + parseFloat(t.amount || t.total || 0), 0);
 
   const totalPages = Math.ceil(finalFilteredData.length / itemsPerPage);
   const pagedData = finalFilteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -261,19 +308,25 @@ export default function HistoryTab() {
                 pagedData.map(t => (
                   <tr key={t.id} onClick={() => setViewingTxn(t)} className="hover:bg-stone-50/80 transition-colors group cursor-pointer">
                     <td className="p-4 pl-8 text-[11px] font-bold text-stone-500 whitespace-nowrap">
-                      {t.date_raw || t.created_at ? (
-                        new Date(t.date_raw || t.created_at).toLocaleString('th-TH', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                          hour12: false
-                        }).replace(/ /g, ' ').replace(',', ' -') + ' น.'
-                      ) : (
-                        t.time || '--:--'
-                      )}
+                      {(() => {
+                        const rawStr = t.date_raw || t.created_at;
+                        if (!rawStr) return t.time || '--:--';
+                        try {
+                          let safeTxDate;
+                          if (typeof rawStr === 'string' && rawStr.includes(' ') && !rawStr.includes('T')) {
+                            safeTxDate = new Date(rawStr.replace(' ', 'T'));
+                          } else {
+                            safeTxDate = new Date(rawStr);
+                          }
+                          if (isNaN(safeTxDate.getTime())) return t.time || '--:--';
+                          return safeTxDate.toLocaleString('th-TH', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+                          }).replace(/ /g, ' ').replace(',', ' -') + ' น.';
+                        } catch (e) {
+                          return t.time || '--:--';
+                        }
+                      })()}
                     </td>
                     <td className="p-4">
                       <span className="text-[12px] font-black text-stone-700 bg-stone-100 px-2.5 py-1 rounded-lg group-hover:bg-[#861b00]/10 group-hover:text-[#861b00] transition-colors">
@@ -281,25 +334,31 @@ export default function HistoryTab() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className={`px-4 py-1.5 text-[9px] tracking-widest font-black rounded-full inline-block ${t.type === 'SALE' || t.type === 'SHIFT_CLOSE' ? 'bg-emerald-50 text-emerald-600' :
-                        t.type === 'TOPUP' ? 'bg-blue-50 text-blue-600' :
-                          t.type === 'EXPENSE' ? 'bg-red-50 text-red-600' :
-                            'bg-stone-100'
-                        }`}>
-                        {t.type === 'SHIFT_CLOSE' ? 'Z-REPORT' : (t.type || 'SALE')}
-                      </span>
+                      {t.status === 'VOIDED' ? (
+                        <span className="px-4 py-1.5 text-[9px] tracking-widest font-black rounded-full inline-block bg-red-100 text-red-600 line-through">
+                          VOIDED
+                        </span>
+                      ) : (
+                        <span className={`px-4 py-1.5 text-[9px] tracking-widest font-black rounded-full inline-block ${t.type === 'SALE' || t.type === 'SHIFT_CLOSE' ? 'bg-emerald-50 text-emerald-600' :
+                          t.type === 'TOPUP' ? 'bg-blue-50 text-blue-600' :
+                            t.type === 'EXPENSE' ? 'bg-red-50 text-red-600' :
+                              'bg-stone-100'
+                          }`}>
+                          {t.type === 'SHIFT_CLOSE' ? 'Z-REPORT' : (t.type || 'SALE')}
+                        </span>
+                      )}
                     </td>
                     <td className="p-4">
-                      <p className="text-[13px] font-bold text-stone-600 truncate max-w-[300px] group-hover:text-stone-900 transition-colors">
+                      <p className={`text-[13px] font-bold truncate max-w-[300px] transition-colors ${t.status === 'VOIDED' ? 'text-stone-400 line-through' : 'text-stone-600 group-hover:text-stone-900'}`}>
                         {t.desc || (t.items ? `${t.items.length} รายการ` : '-')}
                       </p>
                     </td>
                     <td className="p-4 text-center">
-                      <span className="text-[10px] font-black text-stone-400 uppercase tracking-tighter">
+                      <span className={`text-[10px] font-black uppercase tracking-tighter ${t.status === 'VOIDED' ? 'text-stone-300' : 'text-stone-400'}`}>
                         {t.cashier || '-'}
                       </span>
                     </td>
-                    <td className={`p-4 pr-8 text-right font-black text-[16px] ${parseFloat(t.amount || t.total) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <td className={`p-4 pr-8 text-right font-black text-[16px] ${t.status === 'VOIDED' ? 'text-stone-300 line-through' : parseFloat(t.amount || t.total) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                       {parseFloat(t.amount || t.total) >= 0 ? '+' : ''}฿{Math.abs(parseFloat(t.amount || t.total || 0)).toLocaleString()}
                     </td>
                   </tr>
@@ -390,7 +449,6 @@ export default function HistoryTab() {
                   );
                 }
 
-                // 🌟 2. ถ้าเป็นบิลปกติ (SALE / TOPUP)
                 let displayItems = [];
                 if (typeof viewingTxn.items === 'string') {
                   try { displayItems = JSON.parse(viewingTxn.items); } catch (e) { }
@@ -421,12 +479,75 @@ export default function HistoryTab() {
               </div>
             </div>
 
+            {viewingTxn.status === 'VOIDED' && viewingTxn.void_reason && (
+              <div className="bg-red-50 p-4 rounded-2xl mb-6 border border-red-100">
+                <p className="text-[10px] font-black text-red-400 uppercase mb-1">เหตุผลการยกเลิก</p>
+                <p className="text-xs font-bold text-red-600">{viewingTxn.void_reason}</p>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button onClick={() => setViewingTxn(null)} className="flex-1 py-4 bg-stone-100 font-bold text-stone-500 rounded-2xl hover:bg-stone-200 transition-all">ปิด</button>
+              {viewingTxn.status !== 'VOIDED' && viewingTxn.type !== 'SHIFT_CLOSE' && viewingTxn.type !== 'Z_REPORT' && (
+                <button onClick={() => setShowVoidModal(true)} className="flex-1 py-4 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all border border-red-200">ยกเลิกบิล</button>
+              )}
               <button onClick={() => handleRePrint(viewingTxn)} className="flex-[2] py-4 bg-[#861b00] text-white font-black rounded-2xl shadow-lg shadow-[#861b00]/20 hover:shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
                 <span className="material-symbols-outlined text-[20px]">print</span> พิมพ์ใบเสร็จ
               </button>
             </div>
+
+            {showVoidModal && (
+              <div className="absolute inset-0 z-20 bg-white/90 backdrop-blur-sm rounded-[2.5rem] flex items-center justify-center p-6 animate-in fade-in zoom-in-95">
+                <form onSubmit={handleVoidSubmit} className="bg-white p-6 rounded-3xl shadow-xl border border-red-100 w-full text-center max-h-full overflow-y-auto">
+                  <span className="material-symbols-outlined text-4xl text-red-500 mb-2">warning</span>
+                  <h4 className="font-black text-lg text-stone-800 mb-1">ยืนยันการยกเลิกบิล</h4>
+                  <p className="text-xs text-stone-500 font-bold mb-4">โปรดระบุหมายเหตุและใส่ PIN เพื่อยืนยัน</p>
+                  
+                  <div className="text-left mb-4">
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-2 mb-1 block">เหตุผลที่ยกเลิก</label>
+                    <select 
+                      onChange={(e) => {
+                        if (e.target.value === 'อื่นๆ') {
+                          setVoidReason('');
+                        } else {
+                          setVoidReason(e.target.value);
+                        }
+                      }}
+                      className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-red-500 mb-2"
+                    >
+                      <option value="">-- เลือกเหตุผล --</option>
+                      <option value="ลูกค้าเปลี่ยนใจ">ลูกค้าเปลี่ยนใจ</option>
+                      <option value="พนักงานคีย์ผิด">พนักงานคีย์ผิด / รายการผิด</option>
+                      <option value="บิลซ้ำ">บิลซ้ำ</option>
+                      <option value="เปลี่ยนวิธีการชำระเงิน">เปลี่ยนวิธีการชำระเงิน</option>
+                      <option value="อื่นๆ">อื่นๆ (ระบุเอง)</option>
+                    </select>
+
+                    {(voidReason === '' || !['ลูกค้าเปลี่ยนใจ', 'พนักงานคีย์ผิด', 'บิลซ้ำ', 'เปลี่ยนวิธีการชำระเงิน'].includes(voidReason)) && (
+                      <textarea 
+                        value={voidReason} 
+                        onChange={e => setVoidReason(e.target.value)} 
+                        placeholder="ระบุเหตุผลอื่นๆ..." 
+                        required
+                        className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-24" 
+                      />
+                    )}
+                  </div>
+
+                  <input type="password" value={voidPin} onChange={e => setVoidPin(e.target.value)} placeholder="PIN ผู้จัดการ" required
+                    className="w-full text-center text-2xl tracking-[0.5em] font-black py-3 bg-stone-100 rounded-xl mb-2 focus:outline-none focus:ring-2 focus:ring-red-500" />
+                  
+                  {voidError && <p className="text-[10px] text-red-500 font-bold mb-4">{voidError}</p>}
+                  
+                  <div className="flex gap-2 mt-4">
+                    <button type="button" onClick={() => { setShowVoidModal(false); setVoidPin(''); setVoidReason(''); setVoidError(''); }} className="flex-1 py-3 bg-stone-100 text-stone-500 font-bold rounded-xl hover:bg-stone-200">กลับ</button>
+                    <button type="submit" disabled={isVoiding || !voidPin || !voidReason} className="flex-1 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 disabled:opacity-50">
+                      {isVoiding ? 'กำลังยกเลิก...' : 'ยืนยัน'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       )}

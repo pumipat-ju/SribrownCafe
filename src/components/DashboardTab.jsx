@@ -4,28 +4,84 @@ import { AppContext } from '../context/AppContext';
 export default function DashboardTab() {
     const { transactions, members, inventory } = useContext(AppContext);
 
-    const salesTxns = transactions.filter(t => t.type === 'SALE');
-    const totalSales = salesTxns.reduce((sum, t) => sum + t.amount, 0);
-    const totalOrders = salesTxns.length;
+    const today = new Date().toISOString().split('T')[0];
+
+    const todaySalesTxns = transactions.filter(t => {
+        if (t.type !== 'SALE' || t.status === 'VOIDED') return false;
+        const txDateStr = t.date_raw || t.created_at || t.dateRaw || t.date;
+        if (!txDateStr) return false;
+        try {
+            let txDate;
+            if (typeof txDateStr === 'string' && txDateStr.includes(' ') && !txDateStr.includes('T')) {
+                txDate = new Date(txDateStr.replace(' ', 'T'));
+            } else {
+                txDate = new Date(txDateStr);
+            }
+            if (isNaN(txDate.getTime())) return false;
+            return txDate.toISOString().startsWith(today) || (typeof txDateStr === 'string' && txDateStr.startsWith(today));
+        } catch (e) { return false; }
+    });
+
+    const totalSales = todaySalesTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalOrders = todaySalesTxns.length;
     const avgBill = totalOrders > 0 ? (totalSales / totalOrders).toFixed(0) : 0;
-    const lowStockItems = inventory?.filter(i => i.amount <= i.min).length || 0;
+    const lowStockItems = inventory?.filter(i => (i.quantity || i.amount || 0) <= (i.min_level || i.min || 0)).length || 0;
 
-    const topItems = [
-        { name: 'เอสเพรสโซ่เย็น', qty: 45, rev: 4500, color: 'bg-stone-800' },
-        { name: 'อเมริกาโน่ส้ม', qty: 38, rev: 3420, color: 'bg-orange-500' },
-        { name: 'ชาไทยไข่มุก', qty: 32, rev: 2560, color: 'bg-amber-600' },
-        { name: 'ครัวซองต์เนยสด', qty: 25, rev: 2125, color: 'bg-yellow-500' },
-    ];
+    const itemCounts = {};
+    transactions.filter(t => t.type === 'SALE' && t.status !== 'VOIDED').forEach(t => {
+        try {
+            const items = typeof t.items === 'string' ? JSON.parse(t.items) : (t.items || []);
+            items.forEach(item => {
+                if (!itemCounts[item.name]) itemCounts[item.name] = { qty: 0, rev: 0 };
+                itemCounts[item.name].qty += item.qty || 1;
+                itemCounts[item.name].rev += (item.price || 0) * (item.qty || 1);
+            });
+        } catch (e) {}
+    });
 
-    const weeklyData = [
-        { day: 'จ.', sales: 4200, height: 'h-[40%]' },
-        { day: 'อ.', sales: 5100, height: 'h-[55%]' },
-        { day: 'พ.', sales: 3800, height: 'h-[35%]' },
-        { day: 'พฤ.', sales: 6200, height: 'h-[65%]' },
-        { day: 'ศ.', sales: 8500, height: 'h-[85%]' },
-        { day: 'ส.', sales: 12400, height: 'h-[100%]' },
-        { day: 'อา.', sales: 11200, height: 'h-[90%]' },
-    ];
+    const colors = ['bg-stone-800', 'bg-orange-500', 'bg-amber-600', 'bg-yellow-500'];
+    const topItems = Object.keys(itemCounts)
+        .map(name => ({ name, ...itemCounts[name] }))
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 4)
+        .map((item, idx) => ({ ...item, color: colors[idx % colors.length] }));
+
+    const weeklyData = [];
+    let maxSales = 1;
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const isoDate = d.toISOString().split('T')[0];
+        
+        const daySales = transactions.filter(t => {
+            if (t.type !== 'SALE' || t.status === 'VOIDED') return false;
+            const txDateStr = t.date_raw || t.created_at || t.dateRaw || t.date;
+            if (!txDateStr) return false;
+            try {
+                let txDate;
+                if (typeof txDateStr === 'string' && txDateStr.includes(' ') && !txDateStr.includes('T')) {
+                    txDate = new Date(txDateStr.replace(' ', 'T'));
+                } else {
+                    txDate = new Date(txDateStr);
+                }
+                if (isNaN(txDate.getTime())) return false;
+                return txDate.toISOString().startsWith(isoDate) || (typeof txDateStr === 'string' && txDateStr.startsWith(isoDate));
+            } catch (e) { return false; }
+        }).reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        if (daySales > maxSales) maxSales = daySales;
+
+        const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+        weeklyData.push({
+            day: dayNames[d.getDay()],
+            sales: daySales,
+            pct: 0
+        });
+    }
+
+    weeklyData.forEach(d => {
+        d.pct = Math.max(5, Math.round((d.sales / maxSales) * 100));
+    });
 
     return (
         // 🌟 เอา max-w ออก และใส่ h-full flex flex-col
@@ -78,7 +134,7 @@ export default function DashboardTab() {
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
                                     ฿{data.sales.toLocaleString()}
                                 </div>
-                                <div className={`w-full max-w-[40px] bg-stone-100 rounded-t-xl relative overflow-hidden group-hover:bg-emerald-100 transition-colors ${data.height}`}>
+                                <div className={`w-full max-w-[40px] bg-stone-100 rounded-t-xl relative overflow-hidden group-hover:bg-emerald-100 transition-colors h-full`} style={{ height: `${data.pct}%` }}>
                                     <div className="absolute bottom-0 w-full h-full bg-[#861b00] rounded-t-xl group-hover:bg-emerald-500 transition-colors"></div>
                                 </div>
                                 <span className="text-xs font-bold text-stone-400 group-hover:text-stone-800">{data.day}</span>

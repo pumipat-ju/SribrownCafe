@@ -18,7 +18,7 @@ export default function App() {
 
           {/* หน้า Admin ที่มีการเช็คสิทธิ์ (Auth Guard) */}
           <Route
-            path="/admin"
+            path="/admin/*"
             element={
               localStorage.getItem('isLoggedIn') === 'true'
                 ? <AdminPage />
