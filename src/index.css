@@ -66,3 +66,24 @@ body {
   background-color: rgba(28, 25, 23, 0.6);
   backdrop-filter: blur(4px);
 }
+
+/* 🖨️ ระบบซ่อน UI ตอนพิมพ์ (Print CSS) */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area, #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  /* ซ่อน Scrollbar และ UI อื่นๆ */
+  @page {
+    margin: 0;
+    size: auto;
+  }
+}

@@ -358,8 +358,8 @@ export default function HistoryTab() {
                         {t.cashier || '-'}
                       </span>
                     </td>
-                    <td className={`p-4 pr-8 text-right font-black text-[16px] ${t.status === 'VOIDED' ? 'text-stone-300 line-through' : parseFloat(t.amount || t.total) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {parseFloat(t.amount || t.total) >= 0 ? '+' : ''}฿{Math.abs(parseFloat(t.amount || t.total || 0)).toLocaleString()}
+                    <td className={`p-4 pr-8 text-right font-black text-[16px] ${t.status === 'VOIDED' ? 'text-stone-300 line-through' : t.type === 'EXPENSE' ? 'text-red-500' : parseFloat(t.amount || t.total) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {t.type === 'EXPENSE' ? '-' : (parseFloat(t.amount || t.total) >= 0 ? '+' : '')}฿{Math.abs(parseFloat(t.amount || t.total || 0)).toLocaleString()}
                     </td>
                   </tr>
                 ))

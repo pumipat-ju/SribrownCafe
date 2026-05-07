@@ -1,74 +1,86 @@
-import React, { useContext, useState, useMemo } from 'react';
+import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import { fetchJSON } from '../api.js';
 
 export default function CashTab() {
     const { shift, setShift, transactions, setTransactions, currentEmployee, generateBillId } = useContext(AppContext);
-    const [modalMode, setModalMode] = useState(null);
-    const [formData, setFormData] = useState({ category: 'อื่นๆ', note: '', amount: '' });
 
-    // 🌟 1. ระบบคำนวณแบบ "Bulletproof" (กันเด้ง 100%)
-    const cashStats = useMemo(() => {
-        // ใช้ค่า Default เป็น 0 เสมอถ้าไม่มีข้อมูล
-        const start = parseFloat(shift?.startCash || 0);
-        const cin = parseFloat(shift?.cashIn || 0);
-        const cout = parseFloat(shift?.cashOut || 0);
+    // 🌟 ระบบเปิดเก๊ะอัตโนมัติเมื่อเข้าหน้าหน้านี้ (เรียกผ่าน Backend)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            handleKickDrawer();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, []);
 
-        // ถ้ายังไม่เปิดกะ ให้คืนค่าเริ่มต้นไปเลย ไม่ต้องไป Filter วันที่ (ป้องกัน Crash)
-        if (!shift?.isOpen || !shift?.startTime) {
-            return { start, sales: 0, cin, cout, expected: start + cin - cout };
+    // --- Modal States ---
+    const [modalMode, setModalMode] = useState(null); // 'income' | 'expense' | null
+    const [formData, setFormData] = useState({ category: '🧊 น้ำแข็ง', note: '', amount: '' });
+
+    // 🌟 ฟังก์ชันส่งคำสั่งเปิดเก๊ะไปยัง Backend (สั่งดีดเก๊ะผ่าน Network)
+    const handleKickDrawer = async () => {
+        try {
+            await fetchJSON('/hardware/open-drawer', {
+                method: 'POST',
+                body: JSON.stringify({}) // ส่ง Body ว่างไปก่อน เพราะใช้ IP Default ใน Backend
+            });
+        } catch (e) {
+            console.error("Hardware kick failed:", e);
+            // ถ้าสั่งผ่าน Hardware ไม่สำเร็จ อาจจะแจ้งเตือนเบาๆ ใน Console
         }
+    };
 
-        // กรองยอดขายเงินสด "เฉพาะในกะนี้"
-        const currentSales = (transactions || [])
-            .filter(t =>
-                t.dateRaw &&
-                new Date(t.dateRaw) > new Date(shift.startTime) &&
-                t.type === 'SALE' &&
-                (t.method === 'CASH' || t.paymentMethod === 'CASH' || t.method === 'CASH')
-            )
-            .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    // 🌟 ระบบคำนวณยอดเงินแบบ Real-time
+    const stats = useMemo(() => {
+        const start = parseFloat(shift?.startCash || 0);
+        
+        // กรองเฉพาะรายการที่เป็นเงินสด (CASH) และ ไม่ได้ถูก VOID
+        const cashTxns = (transactions || []).filter(t => 
+            t.status !== 'VOIDED' && 
+            (t.method === 'CASH' || t.paymentMethod === 'CASH' || t.type === 'INCOME' || t.type === 'EXPENSE')
+        );
 
-        const expected = start + currentSales + cin - cout;
+        let totalIn = 0;
+        let totalOut = 0;
 
-        return { start, sales: currentSales, cin, cout, expected };
+        cashTxns.forEach(t => {
+            const amt = parseFloat(t.amount || t.total || 0);
+            if (t.type === 'EXPENSE') {
+                totalOut += Math.abs(amt);
+            } else {
+                totalIn += amt;
+            }
+        });
+
+        return {
+            start,
+            totalIn,
+            totalOut,
+            balance: start + totalIn - totalOut,
+            cashTransactions: cashTxns.sort((a, b) => new Date(b.date_raw || b.created_at) - new Date(a.date_raw || a.created_at))
+        };
     }, [shift, transactions]);
 
-    // 🌟 กรองรายการ "เงินสด" ทั้งหมดที่เกิดขึ้นในกะนี้
-    const cashTransactions = (transactions || []).filter(t => {
-        const method = String(t.method || t.paymentMethod || '').toUpperCase();
-        const isCash = method === 'CASH' || method === 'เงินสด';
+    const cashTransactions = stats.cashTransactions;
 
-        // สำคัญ: ต้องเทียบกับเวลาเริ่มกะ (shift.startTime)
-        const timeRef = t.date_raw || t.dateRaw || t.created_at;
-        const isCurrentShift = shift?.startTime && timeRef && new Date(timeRef) > new Date(shift.startTime);
-
-        return isCash && isCurrentShift;
-    }).sort((a, b) => new Date(b.date_raw || b.created_at) - new Date(a.date_raw || a.created_at));
-
-    // 🌟 เปลี่ยนเป็น async function เพื่อรองรับการเซฟลง DB (แก้ Payload ให้ตรงกับ Backend ป้องกัน 500 Error)
+    // 🌟 ฟังก์ชันบันทึกรายการ (นำเงินเข้า/ออก)
     const handleSave = async () => {
         const amount = parseFloat(formData.amount);
         if (!amount || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้องครับ');
         if (!shift?.isOpen) return alert('กรุณาเปิดกะก่อนบันทึกรายการครับ');
 
-        const now = new Date();
         const isIncome = modalMode === 'income';
         const txnType = isIncome ? 'INCOME' : 'EXPENSE';
-
-        // 🌟 1. เจน ID บิลตามฟอร์แมตใหม่ (เช่น EXP-240426-001)
         const newBillId = generateBillId(txnType, transactions);
 
-        // 🌟 2. สร้าง Payload ที่ "ตรงเป๊ะ" กับ schemas.TransactionCreate ใน Backend
         const txnPayload = {
             bill_id: newBillId,
             type: txnType,
-            amount: amount, // เก็บค่าเป็นบวกเสมอ (Backend ชอบค่าบวก แล้วเราใช้ Type แยกเอา)
+            amount: amount,
             method: 'CASH',
             desc: `${formData.category}${formData.note ? ` - ${formData.note}` : ''}`,
             cashier: currentEmployee?.name || 'System',
-            date_raw: now.toISOString(),
-            // 🎯 จุดสำคัญ: ต้องแนบ items ไปด้วย Backend จะได้ไม่ Error 500
+            date_raw: new Date().toISOString(),
             items: JSON.stringify([{
                 name: isIncome ? 'นำเงินเข้าเก๊ะ' : 'นำเงินออกเก๊ะ',
                 qty: 1,
@@ -76,81 +88,29 @@ export default function CashTab() {
             }])
         };
 
-        const newTxn = {
-            ...txnPayload,
-            id: newBillId, // รหัสจำลองสำหรับใช้ใน React ก่อนได้ ID จริง
-            time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
-            date: now.toLocaleDateString('th-TH')
-        };
-
         try {
-            // 🌟 3. บันทึกลง Database ทันที (พร้อมส่ง Payload ที่ถูกต้อง)
             const savedTxn = await fetchJSON('/transactions/', {
                 method: 'POST',
                 body: JSON.stringify(txnPayload)
             });
 
-            // 🌟 4. อัปเดต State ต่างๆ ในเครื่อง
-            setShift(prev => ({
-                ...prev,
-                cashIn: isIncome ? (prev.cashIn || 0) + amount : (prev.cashIn || 0),
-                cashOut: !isIncome ? (prev.cashOut || 0) + amount : (prev.cashOut || 0),
-            }));
-
-            // ใช้ข้อมูลที่ตอบกลับมาจาก DB ถ้ามี ไม่งั้นใช้ newTxn ที่สร้างไว้
-            setTransactions(prev => [savedTxn || newTxn, ...prev]);
-            setFormData({ category: 'อื่นๆ', note: '', amount: '' });
+            // อัปเดตข้อมูลในระบบ
+            setTransactions(prev => [savedTxn, ...prev]);
+            setFormData({ category: '🧊 น้ำแข็ง', note: '', amount: '' });
             setModalMode(null);
-
+            
+            // เมื่อบันทึกเสร็จ ให้เก๊ะเปิดอีกครั้งเพื่อเก็บเงิน/ทอนเงิน (ผ่าน Hardware)
+            setTimeout(() => handleKickDrawer(), 300);
         } catch (e) {
-            console.error("Failed to save transaction to DB:", e);
+            console.error("Failed to save transaction:", e);
             alert("ไม่สามารถบันทึกรายการได้: " + e.message);
         }
     };
 
-    // เพิ่มฟังก์ชันนี้ไว้ใน CashTab() ก่อนส่วน return
-    const getCashStats = () => {
-        const startCash = parseFloat(shift?.startCash || 0);
-
-        // 1. กรองรายการที่เป็นเงินสดในกะนี้ (รวมทั้ง SALE, TOPUP, INCOME, EXPENSE)
-        const currentShiftCashTxns = (transactions || []).filter(t => {
-            // เช็คว่าเป็นเงินสด (รองรับทั้ง CASH หรือ paymentMethod)
-            const method = (t.method || t.paymentMethod || '').toUpperCase();
-            const isCash = method === 'CASH';
-
-            // เช็คเวลา (ต้องตรงกับที่บันทึกลง DB คือ date_raw หรือ dateRaw)
-            const timeRef = t.date_raw || t.dateRaw || t.created_at;
-            const isCurrentShift = timeRef && new Date(timeRef) > new Date(shift?.startTime);
-
-            return isCash && isCurrentShift;
-        });
-
-        let totalIn = 0;  // รวมเงินเข้า (Sale สด + Topup สด + Income)
-        let totalOut = 0; // รวมเงินออก (Expense)
-
-        currentShiftCashTxns.forEach(t => {
-            const amt = parseFloat(t.amount || 0);
-            if (t.type === 'SALE' || t.type === 'TOPUP' || t.type === 'INCOME') {
-                totalIn += Math.abs(amt);
-            } else if (t.type === 'EXPENSE') {
-                totalOut += Math.abs(amt);
-            }
-        });
-
-        return {
-            totalIn,
-            totalOut,
-            balance: startCash + totalIn - totalOut,
-            startCash
-        };
-    };
-
-    const stats = getCashStats();
-
     return (
         <div className="flex flex-col h-full gap-5 w-full relative animate-in fade-in duration-300 font-body">
 
-            {/* Modal บันทึกรับ/จ่าย (คงเดิม) */}
+            {/* Modal บันทึกรับ/จ่าย */}
             {modalMode && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" onClick={() => setModalMode(null)} />
@@ -203,6 +163,9 @@ export default function CashTab() {
                     <span className="material-symbols-outlined text-3xl">payments</span> บัญชีหน้าลิ้นชัก
                 </h2>
                 <div className="flex gap-3">
+                    <button onClick={handleKickDrawer} className="bg-stone-800 text-white px-5 py-3 rounded-full text-xs font-bold border border-stone-800 flex items-center gap-1.5 hover:bg-black transition-colors active:scale-95 shadow-lg shadow-stone-200">
+                        <span className="material-symbols-outlined text-[18px]">open_in_new</span> เปิดเก๊ะเก็บเงิน
+                    </button>
                     <button onClick={() => setModalMode('expense')} className="bg-red-50 text-red-600 px-5 py-3 rounded-full text-xs font-bold border border-red-200 flex items-center gap-1.5 hover:bg-red-100 transition-colors active:scale-95 shadow-sm">
                         <span className="material-symbols-outlined text-[18px]">remove</span> บันทึกจ่าย
                     </button>
@@ -213,24 +176,19 @@ export default function CashTab() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* กล่องเงินเข้า: รวมยอดขายสด + เติมเงินสด + บันทึกรับ */}
                 <div className="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm text-center">
                     <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">เงินนำเข้า (CASH IN)</p>
                     <p className="text-3xl font-black text-emerald-500">฿{stats.totalIn.toLocaleString()}</p>
                 </div>
-
-                {/* กล่องเงินออก: บันทึกจ่าย */}
                 <div className="bg-white p-6 rounded-[2rem] border border-stone-200 shadow-sm text-center">
                     <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">เงินดึงออก (CASH OUT)</p>
                     <p className="text-3xl font-black text-red-500">฿{stats.totalOut.toLocaleString()}</p>
                 </div>
-
-                {/* กล่องเงินสดสุทธิในเก๊ะ */}
                 <div className="animate-sribrown p-6 rounded-[2rem] shadow-xl text-center text-white relative overflow-hidden">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">เงินสดในลิ้นชัก</p>
                     <p className="text-4xl font-black">฿{stats.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     <div className="mt-2 text-[9px] font-bold bg-black/20 inline-block px-3 py-1 rounded-full">
-                        ตั้งต้น: ฿{stats.startCash.toLocaleString()}
+                        ตั้งต้น: ฿{stats.start.toLocaleString()}
                     </div>
                 </div>
             </div>
@@ -257,7 +215,6 @@ export default function CashTab() {
                         </thead>
                         <tbody className="divide-y divide-stone-100">
                             {cashTransactions.length === 0 ? (
-                                /* 1. กรณีไม่มีรายการ (Empty State) */
                                 <tr>
                                     <td colSpan="6" className="p-16 text-center">
                                         <div className="w-12 h-12 mx-auto bg-stone-50 rounded-full flex items-center justify-center mb-3">
@@ -267,39 +224,26 @@ export default function CashTab() {
                                     </td>
                                 </tr>
                             ) : (
-                                /* 2. กรณีมีรายการ (Mapping Data) */
                                 cashTransactions.map(t => {
-                                    // 🌟 คำนวณสถานะและยอดเงิน (Logic เดียวกับหน้า Close Shift)
                                     const isExpense = t.type === 'EXPENSE';
                                     const amount = parseFloat(t.amount || t.total || 0);
-
                                     return (
                                         <tr key={t.id} className="hover:bg-stone-50/50 transition-colors group">
-                                            {/* เวลา: ดึงจาก date_raw ที่เราเพิ่มเข้าไปใหม่ */}
                                             <td className="p-4 pl-8 text-[11px] font-bold text-stone-500 whitespace-nowrap">
-                                                {t.date_raw || t.created_at ? (
-                                                    new Date(t.date_raw || t.created_at).toLocaleString('th-TH', {
-                                                        day: '2-digit',
-                                                        month: '2-digit',
-                                                        year: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                        second: '2-digit',
-                                                        hour12: false
-                                                    }).replace(/ /g, ' ').replace(',', ' -') + ' น.'
-                                                ) : (
-                                                    t.time || '--:--'
-                                                )}
+                                                {(() => {
+                                                    const rawStr = t.date_raw || t.created_at;
+                                                    if (!rawStr) return t.time || '--:--';
+                                                    return new Date(rawStr).toLocaleString('th-TH', {
+                                                        day: '2-digit', month: '2-digit', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+                                                    }).replace(/ /g, ' ').replace(',', ' -') + ' น.';
+                                                })()}
                                             </td>
-
-                                            {/* เลขที่บิล: แสดง bill_id (เช่น SO-xxxx) ถ้าไม่มีจะแสดง ID ปกติ */}
                                             <td className="p-4">
                                                 <span className="text-[11px] font-black text-stone-700 bg-stone-100 px-2.5 py-1 rounded-lg group-hover:bg-[#861b00]/10 group-hover:text-[#861b00] transition-colors">
                                                     {t.bill_id || t.id}
                                                 </span>
                                             </td>
-
-                                            {/* ประเภท: Badge แยกสีตามประเภทรายการ (SALE/TOPUP/INCOME/EXPENSE) */}
                                             <td className="p-4">
                                                 <span className={`px-4 py-1.5 text-[9px] tracking-widest font-black rounded-full inline-block border ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                                     t.type === 'TOPUP' ? 'bg-blue-50 text-blue-600 border-blue-100' :
@@ -313,20 +257,14 @@ export default function CashTab() {
                                                                 t.type === 'EXPENSE' ? 'นำเงินออก' : t.type}
                                                 </span>
                                             </td>
-
-                                            {/* รายละเอียด */}
                                             <td className="p-4 text-[13px] font-bold text-stone-600 group-hover:text-stone-900 transition-colors">
                                                 {t.desc || '-'}
                                             </td>
-
-                                            {/* พนักงาน */}
                                             <td className="p-4 text-center">
                                                 <span className="text-[10px] font-black text-stone-400 uppercase tracking-tighter">
                                                     {t.cashier || 'System'}
                                                 </span>
                                             </td>
-
-                                            {/* จำนวนเงิน: ใส่สีแดงถ้าเป็นเงินออก และเขียวถ้าเป็นเงินเข้า */}
                                             <td className={`p-4 pr-8 text-right font-black text-[16px] ${isExpense ? 'text-red-500' : 'text-emerald-600'}`}>
                                                 {isExpense ? '-' : '+'}฿{Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </td>

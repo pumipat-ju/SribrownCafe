@@ -1,5 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
+import { fetchJSON } from '../api.js';
 
 export default function MarketingTab() {
     const { marketing, setMarketing, categories, menuItems } = useContext(AppContext);
@@ -65,31 +66,43 @@ export default function MarketingTab() {
         setTierModal({ isOpen: false, data: null });
     };
 
-    const savePromo = (e) => {
+    const savePromo = async (e) => {
         e.preventDefault();
-        const newData = {
-            id: promoModal.data?.id || `p_${Date.now()}`,
+        const payload = {
             name: promoForm.name,
-            targetCategories: promoForm.targetCategories,
-            targetItems: promoForm.targetItems,
+            targetCategories: JSON.stringify(promoForm.targetCategories),
+            targetItems: JSON.stringify(promoForm.targetItems),
             minQty: parseInt(promoForm.minQty) || 1,
             discountValue: parseFloat(promoForm.discountValue) || 0,
             discountType: promoForm.discountType,
-            active: promoModal.data?.active ?? true,
+            active: promoModal.data?.active ?? 1,
             eligibleFor: promoForm.eligibleFor,
             startDate: promoForm.startDate,
             endDate: promoForm.endDate,
             startTime: promoForm.startTime,
             endTime: promoForm.endTime,
-            daysOfWeek: promoForm.daysOfWeek
+            daysOfWeek: JSON.stringify(promoForm.daysOfWeek)
         };
 
-        if (promoModal.data) {
-            setMarketing({ ...marketing, promotions: marketing.promotions.map(p => p.id === newData.id ? newData : p) });
-        } else {
-            setMarketing({ ...marketing, promotions: [...marketing.promotions, newData] });
+        try {
+            if (promoModal.data && promoModal.data.id && typeof promoModal.data.id === 'number') {
+                const res = await fetchJSON(`/marketing/promotions/${promoModal.data.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+                res.targetCategories = res.targetCategories ? JSON.parse(res.targetCategories) : [];
+                res.targetItems = res.targetItems ? JSON.parse(res.targetItems) : [];
+                res.daysOfWeek = res.daysOfWeek ? JSON.parse(res.daysOfWeek) : [];
+                setMarketing({ ...marketing, promotions: marketing.promotions.map(p => p.id === res.id ? res : p) });
+            } else {
+                const res = await fetchJSON('/marketing/promotions', { method: 'POST', body: JSON.stringify(payload) });
+                res.targetCategories = res.targetCategories ? JSON.parse(res.targetCategories) : [];
+                res.targetItems = res.targetItems ? JSON.parse(res.targetItems) : [];
+                res.daysOfWeek = res.daysOfWeek ? JSON.parse(res.daysOfWeek) : [];
+                setMarketing({ ...marketing, promotions: [...marketing.promotions, res] });
+            }
+            setPromoModal({ isOpen: false, data: null });
+        } catch (error) {
+            console.error("Failed to save promo", error);
+            alert("เกิดข้อผิดพลาดในการบันทึกโปรโมชั่น");
         }
-        setPromoModal({ isOpen: false, data: null });
     };
 
     const togglePromoCategory = (categoryId) => {
@@ -154,38 +167,53 @@ export default function MarketingTab() {
         setPromoModal({ isOpen: true, data: promo });
     };
 
-    const saveCoupon = (e) => {
+    const saveCoupon = async (e) => {
         e.preventDefault();
         const form = e.target;
         let cType = 'fixed_discount';
         if (couponDiscountType === 'pct') cType = 'percent_discount';
         if (couponDiscountType === 'free') cType = 'free_drink';
 
-        const newData = {
-            id: couponModal.data?.id || `c_${Date.now()}`,
+        const payload = {
             name: form.name.value,
             type: cType,
-            value: cType === 'free_drink' ? 0 : parseInt(form.value.value),
+            value: cType === 'free_drink' ? 0 : parseFloat(form.value.value),
             eligibleFor: form.eligibleFor?.value || 'all',
             icon: cType === 'free_drink' ? 'local_cafe' : 'confirmation_number'
         };
 
-        if (couponModal.data) {
-            setMarketing({ ...marketing, coupons: marketing.coupons.map(c => c.id === newData.id ? newData : c) });
-        } else {
-            setMarketing({ ...marketing, coupons: [...marketing.coupons, newData] });
+        try {
+            if (couponModal.data && couponModal.data.id && typeof couponModal.data.id === 'number') {
+                const res = await fetchJSON(`/marketing/coupons/${couponModal.data.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+                setMarketing({ ...marketing, coupons: marketing.coupons.map(c => c.id === res.id ? res : c) });
+            } else {
+                const res = await fetchJSON('/marketing/coupons', { method: 'POST', body: JSON.stringify(payload) });
+                setMarketing({ ...marketing, coupons: [...marketing.coupons, res] });
+            }
+            setCouponModal({ isOpen: false, data: null });
+        } catch (error) {
+            console.error("Failed to save coupon", error);
+            alert("เกิดข้อผิดพลาดในการบันทึกคูปอง");
         }
-        setCouponModal({ isOpen: false, data: null });
     };
 
-    const executeDelete = () => {
+    const executeDelete = async () => {
         const { type, id } = confirmDelete;
-        const newMarketing = { ...marketing };
-        if (type === 'tier') newMarketing.tiers = marketing.tiers.filter(t => t.id !== id);
-        if (type === 'promo') newMarketing.promotions = marketing.promotions.filter(p => p.id !== id);
-        if (type === 'coupon') newMarketing.coupons = marketing.coupons.filter(c => c.id !== id);
-        setMarketing(newMarketing);
-        setConfirmDelete({ isOpen: false, type: '', id: '', title: '' });
+        try {
+            if (type === 'promo') {
+                if (typeof id === 'number') await fetchJSON(`/marketing/promotions/${id}`, { method: 'DELETE' });
+                setMarketing({ ...marketing, promotions: marketing.promotions.filter(p => p.id !== id) });
+            } else if (type === 'coupon') {
+                if (typeof id === 'number') await fetchJSON(`/marketing/coupons/${id}`, { method: 'DELETE' });
+                setMarketing({ ...marketing, coupons: marketing.coupons.filter(c => c.id !== id) });
+            } else if (type === 'tier') {
+                setMarketing({ ...marketing, tiers: marketing.tiers.filter(t => t.id !== id) });
+            }
+            setConfirmDelete({ isOpen: false, type: '', id: '', title: '' });
+        } catch (error) {
+            console.error("Failed to delete", error);
+            alert("เกิดข้อผิดพลาดในการลบข้อมูล");
+        }
     };
 
     const moveTier = (index, dir) => {
@@ -196,11 +224,44 @@ export default function MarketingTab() {
         }
     };
 
-    const togglePromoActive = (id) => {
-        setMarketing({
-            ...marketing,
-            promotions: marketing.promotions.map(p => p.id === id ? { ...p, active: !p.active } : p)
-        });
+    const togglePromoActive = async (id) => {
+        const promo = marketing.promotions.find(p => p.id === id);
+        if (!promo) return;
+        
+        if (typeof promo.id !== 'number') {
+            // Local fallback if it hasn't been saved correctly
+            setMarketing({
+                ...marketing,
+                promotions: marketing.promotions.map(p => p.id === id ? { ...p, active: !p.active } : p)
+            });
+            return;
+        }
+
+        const payload = {
+            name: promo.name,
+            targetCategories: JSON.stringify(promo.targetCategories),
+            targetItems: JSON.stringify(promo.targetItems),
+            minQty: promo.minQty,
+            discountValue: promo.discountValue,
+            discountType: promo.discountType,
+            active: promo.active ? 0 : 1,
+            eligibleFor: promo.eligibleFor,
+            startDate: promo.startDate,
+            endDate: promo.endDate,
+            startTime: promo.startTime,
+            endTime: promo.endTime,
+            daysOfWeek: JSON.stringify(promo.daysOfWeek)
+        };
+        
+        try {
+            const res = await fetchJSON(`/marketing/promotions/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+            res.targetCategories = res.targetCategories ? JSON.parse(res.targetCategories) : [];
+            res.targetItems = res.targetItems ? JSON.parse(res.targetItems) : [];
+            res.daysOfWeek = res.daysOfWeek ? JSON.parse(res.daysOfWeek) : [];
+            setMarketing({ ...marketing, promotions: marketing.promotions.map(p => p.id === id ? res : p) });
+        } catch (error) {
+            console.error("Failed to toggle promo", error);
+        }
     };
 
     // 🌟 ฟังก์ชันจัดการสีและไอคอนของ Tier แบบพรีเมียม (จับคำในชื่อ)

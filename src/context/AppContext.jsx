@@ -71,6 +71,20 @@ export function AppProvider({ children }) {
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
         fetchJSON('/categories').then(setCategories).catch(e => console.error("Category fetch error", e));
 
+        fetchJSON('/marketing/promotions').then(promos => {
+            const parsedPromos = (promos || []).map(p => ({
+                ...p,
+                targetCategories: p.targetCategories ? JSON.parse(p.targetCategories) : [],
+                targetItems: p.targetItems ? JSON.parse(p.targetItems) : [],
+                daysOfWeek: p.daysOfWeek ? JSON.parse(p.daysOfWeek) : []
+            }));
+            setMarketing(prev => ({ ...prev, promotions: parsedPromos }));
+        }).catch(e => console.error("Promotions fetch error", e));
+
+        fetchJSON('/marketing/coupons').then(coups => {
+            setMarketing(prev => ({ ...prev, coupons: coups || [] }));
+        }).catch(e => console.error("Coupons fetch error", e));
+
         // 🌟 จุดที่ 1: เปลี่ยนจาก /menu เป็น /products เพื่อให้ตรงกับ Database
         fetchJSON('/menu').then(data => {
             setMenuItems(data.map(item => ({
