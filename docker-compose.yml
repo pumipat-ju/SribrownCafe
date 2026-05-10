@@ -22,8 +22,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Use the Docker service name "db" as the host for MySQL connection
       - DATABASE_URL=${DATABASE_URL}
+      - KBANK_CLIENT_ID=${KBANK_CLIENT_ID}          
+      - KBANK_CLIENT_SECRET=${KBANK_CLIENT_SECRET}  
+      - KBANK_MERCHANT_ID=${KBANK_MERCHANT_ID}  
+      - KBANK_PARTNER_ID=${KBANK_PARTNER_ID}
+      - KBANK_PARTNER_SECRET=${KBANK_PARTNER_SECRET}   
+      - OMISE_PUBLIC_KEY=${OMISE_PUBLIC_KEY}   
+      - OMISE_SECRET_KEY=${OMISE_SECRET_KEY}  
     volumes:
       - ./backend:/app
     depends_on:

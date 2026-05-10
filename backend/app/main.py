@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine, SessionLocal
 from . import models
 
-from .routers import employees, members, menu, transactions, inventory, categories, marketing, hardware
+from .routers import employees, members, menu, transactions, inventory, categories, marketing, hardware, payments  # ← เพิ่ม payments
 
 # Base.metadata.drop_all(bind=engine) # Uncomment this if you want to wipe everything once
 Base.metadata.create_all(bind=engine)
@@ -118,6 +118,7 @@ app.include_router(transactions.router)
 app.include_router(inventory.router)
 app.include_router(marketing.router)
 app.include_router(hardware.router)
+app.include_router(payments.router)  # ← เพิ่ม payments
 
 
 @app.get("/")

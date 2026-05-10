@@ -19,7 +19,7 @@ class Member(Base):
     __tablename__ = "members"
 
     id     = Column(Integer, primary_key=True, index=True)
-    name   = Column(String(255), nullable=False)   # "nickname (fullname)"
+    name   = Column(String(255), nullable=False)
     phone  = Column(String(20), unique=True, nullable=False)
     pin    = Column(String(10), nullable=False)
     points = Column(Float, default=0.0)
@@ -46,10 +46,11 @@ class MenuItem(Base):
     name_th = Column(String(100), nullable=False)
     name_en = Column(String(100), nullable=True)
     price = Column(Float, nullable=False)
+    stock = Column(Integer, default=0)
     image = Column(Text, nullable=True)
     color = Column(String(100), nullable=True)
 
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category = relationship("Category", back_populates="menu_items")
 
 
@@ -58,9 +59,9 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bill_id = Column(String(50), nullable=True)
-    type = Column(String(255), nullable=False)      # SALE / EXPENSE / TOPUP / INCOME
+    type = Column(String(255), nullable=False)
     amount = Column(Float, nullable=False)
-    method = Column(String(255), nullable=True)     # CASH / QR / WALLET
+    method = Column(String(255), nullable=True)
     desc = Column(Text, nullable=True)
     cashier = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -89,13 +90,14 @@ class InventoryItem(Base):
     unit = Column(String(255), nullable=True)
     min_level = Column(Float, default=0)
 
+
 class Promotion(Base):
     __tablename__ = "promotions"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    targetCategories = Column(String(255), nullable=True) # json string
-    targetItems = Column(String(255), nullable=True) # json string
+    targetCategories = Column(String(255), nullable=True)
+    targetItems = Column(String(255), nullable=True)
     minQty = Column(Integer, default=1)
     discountValue = Column(Float, default=0.0)
     discountType = Column(String(50), default="pct")
@@ -105,7 +107,8 @@ class Promotion(Base):
     endDate = Column(String(50), nullable=True)
     startTime = Column(String(50), nullable=True)
     endTime = Column(String(50), nullable=True)
-    daysOfWeek = Column(String(255), nullable=True) # json string
+    daysOfWeek = Column(String(255), nullable=True)
+
 
 class Coupon(Base):
     __tablename__ = "coupons"

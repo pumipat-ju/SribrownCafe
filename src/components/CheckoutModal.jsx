@@ -34,6 +34,10 @@ export default function CheckoutModal({ onClose }) {
     const [taxForm, setTaxForm] = useState({ name: '', taxId: '', branch: 'HQ', branchId: '', address: '' });
     const [isTaxSaved, setIsTaxSaved] = useState(false);
 
+    const [qrImage, setQrImage] = useState(null);      
+    const [qrStatus, setQrStatus] = useState('idle');  
+    const [qrPollRef, setQrPollRef] = useState(null);  
+
     // ==========================================
     // 🧮 ระบบคำนวณตัวเลข
     // ==========================================
@@ -203,6 +207,54 @@ export default function CheckoutModal({ onClose }) {
         if (!selectedCouponId) return setAppliedCoupon(null);
         const coupon = marketing?.coupons?.find(c => c.id === selectedCouponId);
         if (coupon) setAppliedCoupon(coupon);
+    };
+    
+        const handleQRBack = () => {
+        if (qrPollRef) clearInterval(qrPollRef);
+        setQrImage(null);
+        setQrStatus('idle');
+        setQrPollRef(null);
+        setCheckoutStep('SUMMARY');
+    };
+ 
+    const handleCreateQR = async () => {
+        setQrStatus('loading');
+
+        const tempOrderId = generateBillId('QR', transactions);
+
+        try {
+            const data = await fetchJSON('/payments/qr/create', {
+                method: 'POST',
+                body: JSON.stringify({
+                    amount: netTotal,
+                    order_id: tempOrderId
+                })
+            });
+
+            setQrImage({
+                src: data.qrCode,
+                chargeId: data.chargeId
+            });
+
+            setQrStatus('ready');
+
+            const poll = setInterval(async () => {
+                const st = await fetchJSON(
+                    `/payments/qr/status/${data.chargeId}`
+                );
+
+                if (st.status === 'PAID') {
+                    clearInterval(poll);
+                    setQrStatus('paid');
+                    setTimeout(() => handleCompleteSale('QR'), 1000);
+                }
+            }, 3000);
+
+            setQrPollRef(poll);
+
+        } catch (e) {
+            setQrStatus('error');
+        }
     };
 
     const handleApplyPromotion = () => {
@@ -987,15 +1039,83 @@ export default function CheckoutModal({ onClose }) {
 
                     {checkoutStep === 'PAY_QR' && (
                         <div className="flex-1 flex flex-col animate-in slide-in-from-right-8 duration-300 min-h-0">
+                
+                            {/* Header */}
                             <div className="flex justify-between items-center mb-6 shrink-0 border-b border-stone-100 pb-4">
-                                <h3 className="font-black text-2xl text-[#4b7deb]">สแกน QR Code</h3>
-                                <button onClick={() => setCheckoutStep('SUMMARY')} className="w-10 h-10 bg-stone-50 text-stone-500 rounded-full flex items-center justify-center hover:bg-stone-200 transition-colors"><span className="material-symbols-outlined text-[20px]">arrow_back</span></button>
+                                <h3 className="font-black text-2xl text-[#4b7deb]">สแกน QR กสิกร</h3>
+                                <button onClick={handleQRBack}
+                                    className="w-10 h-10 bg-stone-50 text-stone-500 rounded-full flex items-center justify-center hover:bg-stone-200 transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                                </button>
                             </div>
-                            <div className="flex-1 flex flex-col items-center justify-center gap-6 bg-stone-50/50 rounded-[2rem] border border-stone-100 mb-6 min-h-0">
-                                <span className="material-symbols-outlined text-[120px] text-stone-200">qr_code_scanner</span>
-                                <p className="text-stone-500 font-bold text-lg text-center">ให้ลูกค้าสแกนจ่ายยอด<br /><span className="text-[#861b00] font-black text-3xl mt-2 block">฿{netTotal.toLocaleString()}</span></p>
-                            </div>
-                            <button onClick={() => handleCompleteSale('QR')} className="w-full py-5 bg-[#4b7deb] hover:bg-[#3a65c4] text-white text-lg font-black rounded-[1.25rem] shadow-[0_8px_16px_-6px_rgba(75,125,235,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0"><span className="material-symbols-outlined text-[24px]">task_alt</span> ยืนยันชำระเงิน</button>
+                
+                            {/* idle: ยังไม่ได้กดสร้าง QR */}
+                            {qrStatus === 'idle' && (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-6">
+                                    <p className="text-stone-500 font-bold text-center">
+                                        ยอดที่ต้องชำระ<br />
+                                        <span className="text-[#861b00] font-black text-4xl mt-1 block">฿{netTotal.toLocaleString()}</span>
+                                    </p>
+                                    <button onClick={handleCreateQR}
+                                        className="px-10 py-4 bg-[#1e4a9c] text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all flex items-center gap-3 text-lg">
+                                        <span className="material-symbols-outlined text-[28px]">qr_code</span>
+                                        สร้าง QR Code
+                                    </button>
+                                </div>
+                            )}
+                
+                            {/* loading: กำลังเรียก API */}
+                            {qrStatus === 'loading' && (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 border-4 border-[#4b7deb] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                                        <p className="text-stone-400 font-bold">กำลังสร้าง QR Code...</p>
+                                    </div>
+                                </div>
+                            )}
+                
+                            {/* ready: แสดง QR + polling อยู่ */}
+                            {qrStatus === 'ready' && qrImage && (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-stone-50/50 rounded-[2rem] border border-stone-100 mb-6">
+                                    <img
+                                        src={qrImage.src}
+                                        alt="QR Payment"
+                                        className="w-56 h-56 rounded-2xl border-4 border-white shadow-xl"
+                                    />
+                                    <p className="text-[#861b00] font-black text-3xl">฿{netTotal.toLocaleString()}</p>
+                                    <p className="text-stone-400 font-bold text-sm animate-pulse">รอการยืนยันจากธนาคาร...</p>
+                                </div>
+                            )}
+                
+                            {/* paid: สำเร็จ */}
+                            {qrStatus === 'paid' && (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-emerald-500">
+                                    <span className="material-symbols-outlined text-[80px]">check_circle</span>
+                                    <p className="font-black text-2xl">ชำระเงินสำเร็จ!</p>
+                                    <p className="text-stone-400 font-bold text-sm">กำลังบันทึกรายการ...</p>
+                                </div>
+                            )}
+                
+                            {/* error: เชื่อมต่อไม่ได้ */}
+                            {qrStatus === 'error' && (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                                    <span className="material-symbols-outlined text-[60px] text-red-400">error</span>
+                                    <p className="text-red-500 font-black text-lg">เชื่อมต่อ KBank ไม่ได้</p>
+                                    <button onClick={() => setQrStatus('idle')}
+                                        className="px-6 py-3 border-2 border-red-200 text-red-500 font-black rounded-2xl hover:bg-red-50 transition-colors">
+                                        ลองใหม่
+                                    </button>
+                                </div>
+                            )}
+                
+                            {/* ปุ่ม Manual Confirm (polling ช้า แต่ลูกค้าสแกนแล้ว) */}
+                            {qrStatus === 'ready' && (
+                                <button onClick={() => { if (qrPollRef) clearInterval(qrPollRef); handleCompleteSale('QR'); }}
+                                    className="w-full py-4 bg-stone-800 hover:bg-black text-white text-sm font-black rounded-[1.25rem] active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0">
+                                    <span className="material-symbols-outlined text-[20px]">task_alt</span>
+                                    ยืนยันด้วยตนเอง (ถ้าสแกนแล้ว)
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

@@ -14,7 +14,7 @@ def get_transactions(db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=schemas.TransactionOut)
-def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
+def create_transaction(transaction: schemas.TransactionBase, db: Session = Depends(get_db)):
     db_transaction = models.Transaction(**transaction.model_dump())
     db.add(db_transaction)
     db.commit()
