@@ -19,18 +19,18 @@ def seed_data():
     try:
         # Check if we need to seed Categories
         if not db.query(models.Category).first():
-            cat_coffee = models.Category(name="☕️ กาแฟ")
-            cat_tea = models.Category(name="🍵 ชา")
-            cat_bakery = models.Category(name="🥐 ขนมอบ")
+            cat_coffee = models.Category(name_th="☕️ กาแฟ", name_en="Coffee")
+            cat_tea = models.Category(name_th="🍵 ชา", name_en="Tea")
+            cat_bakery = models.Category(name_th="🥐 ขนมอบ", name_en="Bakery")
 
             db.add_all([cat_coffee, cat_tea, cat_bakery])
             db.commit()
             print("✅ Category seed data inserted")
 
         # ✅ แก้: Query categories ทุกครั้งหลัง commit เสมอ (ไม่ว่าจะ seed ใหม่หรือมีอยู่แล้ว)
-        cat_coffee = db.query(models.Category).filter(models.Category.name == "☕️ กาแฟ").first()
-        cat_tea = db.query(models.Category).filter(models.Category.name == "🍵 ชา").first()
-        cat_bakery = db.query(models.Category).filter(models.Category.name == "🥐 ขนมอบ").first()
+        cat_coffee = db.query(models.Category).filter(models.Category.name_th == "☕️ กาแฟ").first()
+        cat_tea = db.query(models.Category).filter(models.Category.name_th == "🍵 ชา").first()
+        cat_bakery = db.query(models.Category).filter(models.Category.name_th == "🥐 ขนมอบ").first()
 
         # Check if we need to seed Employees
         if not db.query(models.Employee).first():
@@ -44,10 +44,10 @@ def seed_data():
         # Check if we need to seed Menu
         if not db.query(models.MenuItem).first():
             menu_data = [
-                models.MenuItem(name="Americano", category=cat_coffee, price=60),
-                models.MenuItem(name="Latte", category=cat_coffee, price=70),
-                models.MenuItem(name="Mocha", category=cat_coffee, price=80),
-                models.MenuItem(name="Matcha", category=cat_tea, price=75),
+                models.MenuItem(name_th="อเมริกาโน่", name_en="Americano", category=cat_coffee, price=60, color="bg-stone-200"),
+                models.MenuItem(name_th="ลาเต้", name_en="Latte", category=cat_coffee, price=70, color="bg-amber-100"),
+                models.MenuItem(name_th="มอคค่า", name_en="Mocha", category=cat_coffee, price=80, color="bg-[#fdf8f5]"),
+                models.MenuItem(name_th="มัทฉะ", name_en="Matcha", category=cat_tea, price=75, color="bg-green-100"),
             ]
             db.add_all(menu_data)
             db.commit()
@@ -63,8 +63,8 @@ def seed_data():
                 "Matcha": cat_tea,
             }
             for item in broken_menus:
-                if item.name in fix_map:
-                    item.category = fix_map[item.name]
+                if item.name_en in fix_map:
+                    item.category = fix_map[item.name_en]
             db.commit()
             print(f"✅ Fixed {len(broken_menus)} menu items with missing category")
 

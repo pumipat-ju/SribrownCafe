@@ -460,7 +460,7 @@ export default function HistoryTab() {
                   return displayItems.map((item, i) => (
                     <div key={i} className="flex justify-between items-start">
                       <div className="flex-1 pr-4">
-                        <p className="text-[12px] font-black text-stone-800">{item.name}</p>
+                        <p className="text-[12px] font-black text-stone-800">{item.name_th || item.name_en || item.name}</p>
                         <p className="text-[10px] text-stone-400">{item.qty} x ฿{item.price.toLocaleString()}</p>
                       </div>
                       <span className="text-[12px] font-black text-stone-800">฿{(item.qty * item.price).toLocaleString()}</span>

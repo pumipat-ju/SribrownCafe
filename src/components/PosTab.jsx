@@ -22,7 +22,10 @@ export default function PosTab({ viewMode }) {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
     const handleItemClick = (item) => {
-        const itemOptions = optionGroups.filter(og => og.applyTo.includes(item.cat));
+        const itemCatId = item.cat ?? item.category_id;
+        const itemOptions = optionGroups.filter(og =>
+            (og.applyTo || []).map(String).includes(String(itemCatId))
+        );
         setSelectedItem(item); setTempQty(1); setTempNote('');
         if (itemOptions.length > 0) {
             const initial = {};
@@ -40,7 +43,8 @@ export default function PosTab({ viewMode }) {
         const optionText = optionValues.join(', ');
         const cartKey = `${item.id}-${optionText}`;
         const finalPrice = item.price + Object.values(options).reduce((s, o) => s + (o.p || 0), 0);
-        const categoryName = categories.find(c => String(c.id) === String(item.cat))?.name || 'อื่นๆ';
+        const itemCatId = item.cat ?? item.category_id;
+        const categoryName = categories.find(c => String(c.id) === String(itemCatId))?.name_th || categories.find(c => String(c.id) === String(itemCatId))?.name_en || 'อื่นๆ';
         const existing = cart.find(c => c.cartKey === cartKey);
         if (existing) {
             setCart(cart.map(c => c.cartKey === cartKey ? { ...c, qty: c.qty + qty } : c));
@@ -115,7 +119,7 @@ export default function PosTab({ viewMode }) {
                                 onClick={() => { setActiveCategory(c.id); setSearchQuery(''); }}
                                 className={`shrink-0 px-5 lg:px-6 py-2.5 lg:py-3 rounded-full text-xs font-bold transition-all ${String(activeCategory) === String(c.id) && !searchQuery ? 'bg-[#861b00] text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-50'}`}
                             >
-                                {c.name}
+                                {c.name_th || c.name_en}
                             </button>
                         ))}
                     </div>
@@ -141,13 +145,14 @@ export default function PosTab({ viewMode }) {
                     {/* 🌟 3. ปรับ Logic การกรองสินค้าให้รองรับเงื่อนไข 'all' */}
                     {menuItems.filter(m => {
                         // 1. เช็คหมวดหมู่ (ถ้าเป็น 'all' ให้ผ่าน, ถ้าไม่ใช่ ให้รหัสตรงกัน)
-                        const categoryMatch = activeCategory === 'all' || String(m.cat) === String(activeCategory);
+                        const itemCatId = m.cat ?? m.category_id;
+                        const categoryMatch = activeCategory === 'all' || String(itemCatId) === String(activeCategory);
 
                         // 2. เช็คการค้นหาด้วยคำ (ถ้ามี)
                         let searchMatch = true;
                         if (searchQuery) {
                             const query = searchQuery.toLowerCase();
-                            const matchTH = (m.name_th || m.name || '').toLowerCase().includes(query);
+                            const matchTH = (m.name_th || '').toLowerCase().includes(query);
                             const matchEN = (m.name_en || '').toLowerCase().includes(query);
                             searchMatch = matchTH || matchEN;
                         }
@@ -164,18 +169,18 @@ export default function PosTab({ viewMode }) {
 
                                 <div className={`w-full shrink-0 aspect-square rounded-[1rem] mb-3 flex items-center justify-center overflow-hidden relative transition-colors ${(!item.image || viewMode === 'color') ? (item.color || 'bg-stone-200') : 'bg-stone-50'}`}>
                                     {(viewMode === 'image' && item.image) ? (
-                                        <img src={item.image} alt={item.name_th} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                                        <img src={item.image} alt={item.name_th || item.name_en} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                                     ) : (
                                         <span className="font-black text-sm lg:text-base text-black/20 uppercase tracking-tight group-hover:scale-110 transition-transform duration-300 text-center px-3 leading-snug line-clamp-3">
-                                            {item.name_th || item.name || '?'}
+                                            {item.name_th || item.name_en || '?'}
                                         </span>
                                     )}
                                 </div>
 
                                 <div className="w-full flex items-center justify-between mt-auto">
                                     <div className="w-3/4 flex flex-col pr-2 overflow-hidden">
-                                        <h4 className="font-bold text-stone-800 text-[13px] truncate group-hover:text-[#861b00] transition-colors" title={item.name_th || item.name}>
-                                            {item.name_th || item.name}
+                                        <h4 className="font-bold text-stone-800 text-[13px] truncate group-hover:text-[#861b00] transition-colors" title={item.name_th || item.name_en}>
+                                            {item.name_th || item.name_en}
                                         </h4>
                                         {item.name_en && (
                                             <p className="text-[10px] font-medium text-stone-400 truncate uppercase tracking-tight mt-0.5" title={item.name_en}>
@@ -226,7 +231,7 @@ export default function PosTab({ viewMode }) {
                                     <div key={item.cartKey} className="group bg-stone-50 hover:bg-white p-4 rounded-3xl flex flex-col gap-3 border border-transparent hover:border-[#861b00]/20 hover:shadow-md transition-all duration-300">
                                         <div className="flex justify-between items-start">
                                             <div className="flex-1 pr-2">
-                                                <p className="font-bold text-[13px] text-stone-800 leading-tight">{item.name}</p>
+                                                <p className="font-bold text-[13px] text-stone-800 leading-tight">{item.name_th || item.name_en}</p>
                                                 {item.options && (
                                                     <p className="text-[10px] text-stone-400 font-bold mt-1 leading-tight">{item.options}</p>
                                                 )}
@@ -310,7 +315,7 @@ export default function PosTab({ viewMode }) {
                         <div className="flex justify-between items-start mb-4 shrink-0 border-b border-stone-50 pb-2">
                             <div>
                                 <h3 className="font-black text-2xl text-[#861b00] leading-tight font-headline">
-                                    {selectedItem.name_th || selectedItem.name}
+                                    {selectedItem.name_th || selectedItem.name_en}
                                 </h3>
                                 <p className="text-xs font-bold text-stone-400 mt-1">Base Price: ฿{selectedItem.price}</p>
                             </div>
@@ -320,9 +325,12 @@ export default function PosTab({ viewMode }) {
                         </div>
 
                         <div className="flex flex-col space-y-4 pb-2 overflow-y-auto no-scrollbar">
-                            {optionGroups?.filter(og => og.applyTo.includes(selectedItem.cat)).map(group => (
+                            {optionGroups?.filter(og => {
+                                const selectedCatId = selectedItem.cat ?? selectedItem.category_id;
+                                return (og.applyTo || []).map(String).includes(String(selectedCatId));
+                            }).map(group => (
                                 <div key={group.id}>
-                                    <label className="text-[10px] font-bold text-stone-400 mb-2 block tracking-widest">{group.name}</label>
+                                    <label className="text-[10px] font-bold text-stone-400 mb-2 block tracking-widest">{group.name_th || group.name_en}</label>
                                     <div className="grid grid-cols-3 gap-1.5">
                                         {group.choices.map((choice, idx) => {
                                             const isSelected = tempOptions[group.id]?.n === choice.n;

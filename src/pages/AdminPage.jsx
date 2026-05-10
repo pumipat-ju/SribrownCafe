@@ -156,7 +156,7 @@ export default function AdminPage() {
 
                 parsedItems.forEach(item => {
                     // หาชื่อหมวดหมู่ ถ้าสินค้าไหนไม่ได้ตั้งหมวดหมู่ไว้ จะจับยัดลง 'อื่นๆ'
-                    const catName = item.category || item.category_name || item.categoryName || 'อื่นๆ';
+                    const catName = item.category_th || item.category_th || item.category_en || item.category_name || item.categoryName || item.category || 'อื่นๆ';
                     const itemQty = parseFloat(item.qty || 1);
                     const itemTotal = parseFloat(item.price || 0) * itemQty;
 

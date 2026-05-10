@@ -539,7 +539,7 @@ export default function MarketingTab() {
                                             className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors flex items-center gap-1 ${promoForm.targetCategories.includes(cat.id) ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-100'}`}
                                         >
                                             {promoForm.targetCategories.includes(cat.id) && <span className="material-symbols-outlined text-[14px]">check</span>}
-                                            {cat.name}
+                                            {cat.name_th || cat.name_en || '-'}
                                         </button>
                                     ))}
                                 </div>
@@ -551,7 +551,7 @@ export default function MarketingTab() {
                                         <div className="flex flex-wrap gap-2">
                                             {safeMenuItems
                                                 .filter(p => {
-                                                    const itemCat = p.category || p.category_id;
+                                                    const itemCat = p.cat ?? p.category_id ?? p.category?.id ?? p.category;
                                                     return promoForm.targetCategories.includes(itemCat) ||
                                                         promoForm.targetCategories.includes(Number(itemCat)) ||
                                                         promoForm.targetCategories.includes(String(itemCat));
@@ -563,7 +563,7 @@ export default function MarketingTab() {
                                                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors flex items-center gap-1 ${promoForm.targetItems.includes(item.id) ? 'bg-stone-800 border-stone-800 text-white' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}
                                                     >
                                                         {promoForm.targetItems.includes(item.id) && <span className="material-symbols-outlined text-[12px]">check</span>}
-                                                        {item.name_th || item.name}
+                                                        {item.name_th || item.name_en || item.name || '-'}
                                                     </button>
                                                 ))}
                                         </div>

@@ -1,4 +1,6 @@
+# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Date, ForeignKey
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -29,23 +31,26 @@ class Member(Base):
 
 class Category(Base):
     __tablename__ = "categories"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
 
-    items = relationship("MenuItem", back_populates="category")
+    id = Column(Integer, primary_key=True, index=True)
+    name_th = Column(String(100), nullable=False)
+    name_en = Column(String(100), nullable=True)
+
+    menu_items = relationship("MenuItem", back_populates="category")
 
 
 class MenuItem(Base):
     __tablename__ = "menu_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    name_th = Column(String(100), nullable=False)
+    name_en = Column(String(100), nullable=True)
     price = Column(Float, nullable=False)
-    stock = Column(Integer, default=0)
-    image = Column(String(255), nullable=True)
+    image = Column(Text, nullable=True)
+    color = Column(String(100), nullable=True)
 
-    category = relationship("Category", back_populates="items")
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category = relationship("Category", back_populates="menu_items")
 
 
 class Transaction(Base):
@@ -106,4 +111,4 @@ class Coupon(Base):
     type = Column(String(50), nullable=False)
     value = Column(Float, default=0.0)
     icon = Column(String(50), default="sell")
-    eligibleFor = Column(String(50), default="all")
+    eligibleFor = Column(String(50), default="all")

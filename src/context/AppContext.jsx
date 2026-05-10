@@ -29,9 +29,40 @@ export function AppProvider({ children }) {
     const [categories, setCategories] = useState([]);
 
     const [optionGroups, setOptionGroups] = useState([
-        { id: 'og_roast', name: 'เมล็ดกาแฟ', choices: [{ n: 'คั่วเข้ม', p: 0 }, { n: 'คั่วกลาง', p: 0 }, { n: 'คั่วอ่อน', p: 0 }], applyTo: [1] },
-        { id: 'og_type', name: 'รูปแบบ (ร้อน/เย็น/ปั่น)', choices: [{ n: 'ร้อน', p: -20 }, { n: 'เย็น', p: 0 }, { n: 'ปั่น', p: 20 }], applyTo: [1, 2] },
-        { id: 'og_sweet', name: 'ความหวาน', choices: [{ n: '100%', p: 0 }, { n: '50%', p: 0 }, { n: '25%', p: 0 }, { n: '0%', p: 0 }], applyTo: [1, 2] }
+        {
+            id: 'og_roast',
+            name_th: 'เมล็ดกาแฟ',
+            name_en: 'Coffee Beans',
+            choices: [
+                { n: 'คั่วเข้ม', p: 0 },
+                { n: 'คั่วกลาง', p: 0 },
+                { n: 'คั่วอ่อน', p: 0 }
+            ],
+            applyTo: [1]
+        },
+        {
+            id: 'og_type',
+            name_th: 'รูปแบบ (ร้อน/เย็น/ปั่น)',
+            name_en: 'Type',
+            choices: [
+                { n: 'ร้อน', p: -20 },
+                { n: 'เย็น', p: 0 },
+                { n: 'ปั่น', p: 20 }
+            ],
+            applyTo: [1, 2]
+        },
+        {
+            id: 'og_sweet',
+            name_th: 'ความหวาน',
+            name_en: 'Sweetness',
+            choices: [
+                { n: '100%', p: 0 },
+                { n: '50%', p: 0 },
+                { n: '25%', p: 0 },
+                { n: '0%', p: 0 }
+            ],
+            applyTo: [1, 2]
+        }
     ]);
 
     const [menuItems, setMenuItems] = useState([]);
@@ -69,7 +100,7 @@ export function AppProvider({ children }) {
     const refreshData = () => {
         fetchJSON('/employees').then(setEmployees).catch(e => console.error("Employee fetch error", e));
         fetchJSON('/members').then(setMembers).catch(e => console.error("Member fetch error", e));
-        fetchJSON('/categories').then(setCategories).catch(e => console.error("Category fetch error", e));
+        fetchJSON('/categories').then(data => setCategories(data || [])).catch(e => console.error("Category fetch error", e));
 
         fetchJSON('/marketing/promotions').then(promos => {
             const parsedPromos = (promos || []).map(p => ({
@@ -85,21 +116,22 @@ export function AppProvider({ children }) {
             setMarketing(prev => ({ ...prev, coupons: coups || [] }));
         }).catch(e => console.error("Coupons fetch error", e));
 
-        // 🌟 จุดที่ 1: เปลี่ยนจาก /menu เป็น /products เพื่อให้ตรงกับ Database
+        // 🌟 จุดที่ 1: ดึงข้อมูลเมนู
         fetchJSON('/menu').then(data => {
-            setMenuItems(data.map(item => ({
+            setMenuItems((data || []).map(item => ({
                 id: item.id,
                 cat: item.category?.id ?? item.category_id ?? null,
-                name: item.name,
-                name_th: item.name_th || item.name || '',
+                category_id: item.category?.id ?? item.category_id ?? null,
+                name_th: item.name_th || '',
                 name_en: item.name_en || '',
                 price: item.price,
-                color: item.image || 'bg-white'
+                image: item.image,
+                color: item.color || 'bg-stone-200'
             })));
         }).catch(e => console.error("Menu fetch error", e));
 
         fetchJSON('/transactions').then(data => {
-            setTransactions(data.map(t => {
+            setTransactions((data || []).map(t => {
                 // 🌟 จุดที่ 2: ดึงเวลาที่เซฟใน DB (created_at) มาสร้าง dateRaw ให้ระบบคำนวณกะได้
                 const dt = new Date(t.created_at);
                 return {

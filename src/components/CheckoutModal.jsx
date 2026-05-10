@@ -109,7 +109,7 @@ export default function CheckoutModal({ onClose }) {
         }
 
         const now = new Date();
-        const itemSummary = cart.map(item => `${item.name} x${item.qty}`).join(', ');
+        const itemSummary = cart.map(item => `${item.name_th || item.name_en || item.name} x${item.qty}`).join(', ');
         const descText = selectedMember
             ? `ขายให้: ${selectedMember.name} (${itemSummary})`
             : `ขายทั่วไป: ${itemSummary}`;
@@ -294,7 +294,7 @@ export default function CheckoutModal({ onClose }) {
                                     {completedTxn.items?.map(item => (
                                         <div key={item.cartKey} className="flex flex-col">
                                             <div className="flex justify-between font-black text-stone-700 text-[13px]">
-                                                <span>{item.qty}x {item.name}</span>
+                                                <span>{item.qty}x {item.name_th || item.name_en || item.name}</span>
                                                 <span>฿{(item.price * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                             </div>
                                             {item.options && (
@@ -630,7 +630,7 @@ export default function CheckoutModal({ onClose }) {
                             <div key={item.cartKey} className="flex justify-between items-start border-b border-stone-50 pb-3">
                                 <div className="flex-1 min-w-0 pr-2">
                                     <h4 className="font-bold text-[13px] text-stone-800 leading-tight flex flex-wrap items-center gap-1.5">
-                                        {item.name}
+                                        {item.name_th || item.name_en || item.name}
                                         <span className="text-[#861b00] font-black text-[11px] bg-[#861b00]/10 px-1.5 py-0.5 rounded-md inline-block">x{item.qty}</span>
                                     </h4>
                                     {item.options && <p className="text-[11px] text-stone-400 font-bold leading-snug mt-1.5 break-words">{item.options}</p>}

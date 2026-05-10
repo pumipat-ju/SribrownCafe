@@ -223,7 +223,7 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
                                 displayItems.map((item, idx) => (
                                     <tr key={item.cartKey || idx}>
                                         <td className="py-2 align-top">
-                                            <div className="w-full pr-2 leading-normal font-bold">{item.name}</div>
+                                            <div className="w-full pr-2 leading-normal font-bold">{item.name_th || item.name_en || item.name}</div>
                                             {item.options && (
                                                 <div className="text-[9px] text-gray-600 w-full pr-2 leading-relaxed mt-0.5">
                                                     - {item.options}

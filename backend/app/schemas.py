@@ -56,7 +56,8 @@ class MemberOut(MemberBase):
 
 
 class CategoryBase(BaseModel):
-    name: str
+    name_th: str
+    name_en: str | None = None
 
 
 class CategoryCreate(CategoryBase):
@@ -71,21 +72,21 @@ class CategoryOut(CategoryBase):
 
 
 class MenuItemBase(BaseModel):
-    name: str
-    category_id: Optional[int] = None
-    category_name: Optional[str] = None
+    name_th: str
+    name_en: str | None = None
     price: float
-    stock: Optional[int] = 0
-    image: Optional[str] = None
+    category_id: int | None = None
+    image: str | None = None
+    color: str | None = None
 
 
 class MenuItemCreate(MenuItemBase):
-    pass
+    category_name_th: str | None = None
+    category_name_en: str | None = None
 
 
 class MenuItemOut(MenuItemBase):
     id: int
-    category: Optional[CategoryOut] = None
 
     class Config:
         from_attributes = True
@@ -183,4 +184,4 @@ class CouponCreate(CouponBase):
 class CouponOut(CouponBase):
     id: int
     class Config:
-        from_attributes = True
+        from_attributes = True
