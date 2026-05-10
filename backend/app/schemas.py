@@ -108,11 +108,7 @@ class TransactionBase(BaseModel):
     vatAmount: Optional[float] = 0.0
     status: Optional[str] = "COMPLETED"
     void_reason: Optional[str] = None
-
-
-class TransactionCreate(TransactionBase):
-    pass
-
+    couponName: Optional[str] = None
 
 class TransactionOut(TransactionBase):
     id: int
@@ -146,10 +142,6 @@ class InventoryItemOut(InventoryItemBase):
 
     class Config:
         from_attributes = True
-
-
-from pydantic import BaseModel
-from typing import Optional
 
 
 class PromotionBase(BaseModel):

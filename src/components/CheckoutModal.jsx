@@ -16,6 +16,8 @@ export default function CheckoutModal({ onClose }) {
     const [selectedMember, setSelectedMember] = useState(null);
     const [selectedCouponId, setSelectedCouponId] = useState('');
     const [appliedCoupon, setAppliedCoupon] = useState(null);
+    const [selectedPromotionId, setSelectedPromotionId] = useState('');
+    const [appliedPromotion, setAppliedPromotion] = useState(null);
 
     const [authEmployee, setAuthEmployee] = useState(null);
     const [isTopupFlow, setIsTopupFlow] = useState(false);
@@ -43,10 +45,124 @@ export default function CheckoutModal({ onClose }) {
         return sortedTiers.find(t => points >= (t.minSpent || 0)) || null;
     };
 
+    const isPromoActive = (promo) => {
+        return promo?.active === 1 || promo?.active === true || promo?.active === '1';
+    };
+
+    const getItemCatId = (item) => {
+        return item?.cat ?? item?.category_id ?? item?.category?.id ?? item?.category ?? null;
+    };
+
+    const isPromotionEligible = (promo) => {
+        if (!promo || !isPromoActive(promo)) return false;
+
+        // เฉพาะสมาชิก
+        if (
+            (promo.eligibleFor === 'member' || promo.eligibleFor === 'members') &&
+            !selectedMember
+        ) {
+            return false;
+        }
+
+        const targetCategories = Array.isArray(promo.targetCategories)
+            ? promo.targetCategories
+            : [];
+
+        const targetItems = Array.isArray(promo.targetItems)
+            ? promo.targetItems
+            : [];
+
+        // ถ้าไม่ได้เลือกหมวด/สินค้า = ใช้ได้กับทุกสินค้า
+        const matchedItems = cart.filter((item) => {
+            const itemId = String(item.id);
+            const itemCatId = String(getItemCatId(item));
+
+            const matchItem =
+                targetItems.length === 0 ||
+                targetItems.map(String).includes(itemId);
+
+            const matchCategory =
+                targetCategories.length === 0 ||
+                targetCategories.map(String).includes(itemCatId);
+
+            return matchItem && matchCategory;
+        });
+
+        const matchedQty = matchedItems.reduce(
+            (sum, item) => sum + Number(item.qty || 0),
+            0
+        );
+
+        return matchedQty >= Number(promo.minQty || 1);
+    };
+
+    const calculatePromotionDiscount = (promo) => {
+        if (!isPromotionEligible(promo)) return 0;
+
+        const targetCategories = Array.isArray(promo.targetCategories)
+            ? promo.targetCategories
+            : [];
+
+        const targetItems = Array.isArray(promo.targetItems)
+            ? promo.targetItems
+            : [];
+
+        const matchedSubtotal = cart
+            .filter((item) => {
+                const itemId = String(item.id);
+                const itemCatId = String(getItemCatId(item));
+
+                const matchItem =
+                    targetItems.length === 0 ||
+                    targetItems.map(String).includes(itemId);
+
+                const matchCategory =
+                    targetCategories.length === 0 ||
+                    targetCategories.map(String).includes(itemCatId);
+
+                return matchItem && matchCategory;
+            })
+            .reduce((sum, item) => {
+                return sum + Number(item.price || 0) * Number(item.qty || 1);
+            }, 0);
+
+        const value = Number(promo.discountValue || 0);
+
+        if (promo.discountType === 'pct') {
+            return matchedSubtotal * (value / 100);
+        }
+
+        // amt = ลดเป็นบาท
+        return value;
+    };
+
     let discount = 0;
+
+    // คูปอง
     if (appliedCoupon) {
-        if (appliedCoupon.type === 'fixed_discount') discount += appliedCoupon.value;
-        else if (appliedCoupon.type === 'percentage') discount += subtotal * (appliedCoupon.value / 100);
+        const couponValue = Number(appliedCoupon.value || 0);
+
+        if (appliedCoupon.type === 'fixed_discount') {
+            discount += couponValue;
+        } else if (
+            appliedCoupon.type === 'percent_discount' ||
+            appliedCoupon.type === 'percentage'
+        ) {
+            discount += subtotal * (couponValue / 100);
+        } else if (appliedCoupon.type === 'free_drink') {
+            const cheapestItem = [...cart].sort(
+                (a, b) => Number(a.price || 0) - Number(b.price || 0)
+            )[0];
+
+            if (cheapestItem) {
+                discount += Number(cheapestItem.price || 0);
+            }
+        }
+    }
+
+    // โปรโมชั่น
+    if (appliedPromotion) {
+        discount += calculatePromotionDiscount(appliedPromotion);
     }
 
     let appliedTierName = '';
@@ -89,6 +205,34 @@ export default function CheckoutModal({ onClose }) {
         if (coupon) setAppliedCoupon(coupon);
     };
 
+    const handleApplyPromotion = () => {
+        if (!selectedPromotionId) {
+            setAppliedPromotion(null);
+            return;
+        }
+
+        const promo = marketing?.promotions?.find(
+            (p) => String(p.id) === String(selectedPromotionId)
+        );
+
+        if (!promo) {
+            alert('ไม่พบโปรโมชั่นนี้');
+            return;
+        }
+
+        if (!isPromoActive(promo)) {
+            alert('โปรโมชั่นนี้ถูกปิดใช้งานอยู่');
+            return;
+        }
+
+        if (!isPromotionEligible(promo)) {
+            alert('เงื่อนไขโปรโมชั่นยังไม่ครบ เช่น จำนวนขั้นต่ำ หมวดหมู่ หรือสิทธิ์สมาชิก');
+            return;
+        }
+
+        setAppliedPromotion(promo);
+    };
+
     const handleCompleteSale = async (method) => {
         if (method === 'CASH' && (!receivedAmount || parseFloat(receivedAmount) < netTotal)) {
             return alert('กรุณาระบุเงินที่รับมาให้ครบถ้วน');
@@ -116,11 +260,22 @@ export default function CheckoutModal({ onClose }) {
 
         // 🌟 1. ดักจับ "ชื่อส่วนลด" ว่าลดเพราะคูปอง หรือ ลดเพราะระดับสมาชิก
         let appliedPromoName = '';
-        if (appliedCoupon) {
-            appliedPromoName = `คูปอง ${appliedCoupon.name}`;
-        } else if (appliedTierName) {
-            appliedPromoName = `ส่วนลดสมาชิกระดับ ${appliedTierName}`;
+
+        const discountNames = [];
+
+        if (appliedPromotion) {
+            discountNames.push(`โปร ${appliedPromotion.name}`);
         }
+
+        if (appliedCoupon) {
+            discountNames.push(`คูปอง ${appliedCoupon.name}`);
+        }
+
+        if (appliedTierName) {
+            discountNames.push(`ส่วนลดสมาชิกระดับ ${appliedTierName}`);
+        }
+
+        appliedPromoName = discountNames.join(', ');
 
         const transactionData = {
             bill_id: generateBillId('SALE', transactions),
@@ -128,7 +283,8 @@ export default function CheckoutModal({ onClose }) {
             amount: netTotal,
             subtotal: subtotal,
             discount: discount,
-            promotionName: appliedPromoName, // 🌟 2. แปะป้ายชื่อโปรโมชั่นเข้าไปในบิล!
+            promotionName: appliedPromotion?.name || appliedPromoName || null, // 🌟 2. แปะป้ายชื่อโปรโมชั่นเข้าไปในบิล!
+            couponName: appliedCoupon?.name || null,
             beforeVat: beforeVat,
             vatAmount: vatAmount,
             paymentMethod: method,
@@ -164,7 +320,7 @@ export default function CheckoutModal({ onClose }) {
         setCompletedTxn(newTransaction);
         setIsSuccess(true);
     };
-
+    
     const handleMemberNumClick = (num) => {
         if (num === 'C') setMemberPin('');
         else if (num === 'DEL') setMemberPin(prev => prev.slice(0, -1));
@@ -690,7 +846,54 @@ export default function CheckoutModal({ onClose }) {
                                     </div>
                                     <button onClick={handleApplyCoupon} className="bg-[#c27c2b] hover:bg-[#a66822] text-white px-6 rounded-xl font-bold shadow-sm active:scale-95 text-sm transition-colors">ใช้คูปอง</button>
                                 </div>
+                                <div className="flex gap-3 bg-emerald-50/30 border border-emerald-200/60 p-2 rounded-[1.5rem]">
+                                    <div className="bg-white flex-1 flex items-center gap-2 px-4 rounded-xl border border-emerald-100 shadow-sm">
+                                        <span className="material-symbols-outlined text-emerald-500 text-[20px]">
+                                            local_offer
+                                        </span>
+
+                                        <select
+                                            value={selectedPromotionId}
+                                            onChange={(e) => setSelectedPromotionId(e.target.value)}
+                                            className="bg-transparent font-bold text-[13px] outline-none text-stone-700 w-full h-full py-3 appearance-none cursor-pointer"
+                                        >
+                                            <option value="">-- เลือกโปรโมชั่น --</option>
+
+                                            {marketing?.promotions
+                                                ?.filter((p) => p.active === 1 || p.active === true || p.active === '1')
+                                                .map((p) => (
+                                                    <option key={p.id} value={p.id}>
+                                                        {p.name}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        onClick={handleApplyPromotion}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-xl font-bold shadow-sm active:scale-95 text-sm transition-colors"
+                                    >
+                                        ใช้โปรโมชั่น
+                                    </button>
+                                </div>
+                                {appliedPromotion && (
+                                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-2 flex items-center justify-between text-xs font-bold">
+                                    <span>
+                                        ใช้โปร: {appliedPromotion.name}
+                                    </span>
+                                    <button
+                                        onClick={() => {
+                                            setAppliedPromotion(null);
+                                            setSelectedPromotionId('');
+                                        }}
+                                        className="text-emerald-700 hover:text-red-500"
+                                    >
+                                        ยกเลิก
+                                    </button>
+                                </div>
+                            )}
                             </div>
+                        
 
                             <div className="flex-1 flex flex-col justify-end min-h-0 pt-4">
                                 <div className="space-y-3 mb-6 px-2">
