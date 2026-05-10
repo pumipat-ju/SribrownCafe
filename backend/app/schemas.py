@@ -148,40 +148,51 @@ class InventoryItemOut(InventoryItemBase):
         from_attributes = True
 
 
+from pydantic import BaseModel
+from typing import Optional
+
+
 class PromotionBase(BaseModel):
     name: str
     targetCategories: Optional[str] = None
     targetItems: Optional[str] = None
-    minQty: Optional[int] = 1
-    discountValue: Optional[float] = 0.0
-    discountType: Optional[str] = "pct"
-    active: Optional[int] = 1
-    eligibleFor: Optional[str] = "all"
+    minQty: int = 1
+    discountValue: float = 0.0
+    discountType: str = "pct"
+    active: int = 1
+    eligibleFor: str = "all"
     startDate: Optional[str] = None
     endDate: Optional[str] = None
     startTime: Optional[str] = None
     endTime: Optional[str] = None
     daysOfWeek: Optional[str] = None
 
+
 class PromotionCreate(PromotionBase):
     pass
 
+
 class PromotionOut(PromotionBase):
     id: int
+
     class Config:
         from_attributes = True
+
 
 class CouponBase(BaseModel):
     name: str
     type: str
-    value: Optional[float] = 0.0
-    icon: Optional[str] = "sell"
-    eligibleFor: Optional[str] = "all"
+    value: float = 0.0
+    icon: str = "sell"
+    eligibleFor: str = "all"
+
 
 class CouponCreate(CouponBase):
     pass
 
+
 class CouponOut(CouponBase):
     id: int
+
     class Config:
         from_attributes = True
