@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
