@@ -348,7 +348,10 @@ export default function CheckoutModal({ onClose }) {
             time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
             desc: descText,
             cashier: currentEmployee?.name || 'Staff',
-            items: JSON.stringify(cart)
+            items: JSON.stringify(cart.map(item => ({
+                ...item,
+                name: item.name_th || item.name_en || item.name || 'ไม่ระบุ'
+            })))
         };
 
         let dbTransaction = null;

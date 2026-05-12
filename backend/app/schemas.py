@@ -9,15 +9,19 @@ class EmployeeBase(BaseModel):
     role: Optional[str] = "staff"
 
 
-class EmployeeCreate(EmployeeBase):
-    pass
+class EmployeeCreate(BaseModel):
+    name: str
+    pin: str
+    role: str
+    phone: str | None = None
 
 
 class EmployeeOut(BaseModel):
     id: int
     name: str
-    role: str
     pin: str
+    role: str
+    phone: str | None = None
 
     class Config:
         from_attributes = True
@@ -84,9 +88,17 @@ class MenuItemCreate(MenuItemBase):
     category_name_th: str | None = None
     category_name_en: str | None = None
 
+class CategoryInMenu(BaseModel):
+    id: int
+    name_th: str
+    name_en: str | None = None
+
+    class Config:
+        from_attributes = True
 
 class MenuItemOut(MenuItemBase):
     id: int
+    category: CategoryInMenu | None = None
 
     class Config:
         from_attributes = True

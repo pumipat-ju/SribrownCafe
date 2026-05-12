@@ -91,7 +91,25 @@ def seed_data():
     finally:
         db.close()
 
+def run_migrations():
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        
+        # เพิ่ม phone column ถ้ายังไม่มี
+        try:
+            db.execute(text("ALTER TABLE employees ADD COLUMN phone VARCHAR(255)"))
+            db.commit()
+            print("✅ Migration: added phone column to employees")
+        except Exception as e:
+            db.rollback()
+            print(f"ℹ️ Migration skipped (column may already exist): {e}")
+            
+    finally:
+        db.close()
 
+# เรียกก่อน seed
+run_migrations()
 # เรียก seed ตอน start
 seed_data()
 

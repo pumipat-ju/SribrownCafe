@@ -48,6 +48,10 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
     const [topupMethod, setTopupMethod] = useState('CASH'); // 🌟 เก็บช่องทางชำระเงิน
     const [topupReceipt, setTopupReceipt] = useState(null);
 
+    const [qrCodeUri, setQrCodeUri] = useState('');
+    const [qrChargeId, setQrChargeId] = useState('');
+    const [qrPollingRef, setQrPollingRef] = useState(null);
+
     const [couponMember, setCouponMember] = useState(null);
     const [couponPin, setCouponPin] = useState('');
     const [isCouponSuccess, setIsCouponSuccess] = useState(false);
@@ -261,12 +265,15 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
 
     // 🌟 1. ย้ายขึ้นมาบนสุด เพื่อแก้ปัญหาหน้าจอ Crash (ขาว)
     const closeTopupModal = () => {
+        if (qrPollingRef) { clearInterval(qrPollingRef); setQrPollingRef(null); }
         setTopupMember(null);
         setTopupAmount('');
         setTopupStep('AMOUNT');
         setTopupPin('');
         setTopupMethod('CASH');
         setTopupReceipt(null);
+        setQrCodeUri('');
+        setQrChargeId('');
     };
 
     const handleVerifyTopupPin = async () => {
@@ -280,17 +287,15 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
         const amount = parseFloat(topupAmount || 0);
         const newWallet = parseFloat(topupMember.wallet || 0) + amount;
         const newPoints = parseFloat(topupMember.points || 0) + amount;
-
         const newTopupId = generateBillId('TOPUP', transactions);
         const now = new Date();
 
-        // 1. ข้อมูลบิล (ตรงตาม Database)
         const dbTxnPayload = {
             bill_id: newTopupId,
             type: 'TOPUP',
             amount: amount,
             method: topupMethod,
-            desc: `เติมเงินให้: ${topupMember.name}`, // ใช้ name แทน nickname
+            desc: `เติมเงินให้: ${topupMember.name}`,
             cashier: authEmp.name,
             date_raw: now.toISOString(),
             items: JSON.stringify([{ name: 'เติมเงิน E-Wallet', qty: 1, price: amount }])
@@ -304,8 +309,6 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
             date: now.toLocaleDateString('th-TH')
         };
 
-        // 🌟 2. ข้อมูลอัปเดตลูกค้าแบบ "คลีน 100%" (ลบ id, isActive, tier ทิ้งทั้งหมด!)
-        // เพื่อให้ตรงกับ MemberUpdate ใน schemas.py เป๊ะๆ
         const cleanMemberPayload = {
             name: String(topupMember.name),
             phone: String(topupMember.phone),
@@ -316,37 +319,77 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
             dob: topupMember.dob || null
         };
 
+        // ถ้าเลือก QR → สร้าง QR ก่อน แล้วรอ polling
+        if (topupMethod === 'QR') {
+            try {
+                const qrData = await fetchJSON('/payments/qr/create', {
+                    method: 'POST',
+                    body: JSON.stringify({ amount, order_id: newTopupId })
+                });
+                setQrCodeUri(qrData.qrCode);
+                setQrChargeId(qrData.chargeId);
+                setTopupStep('QR_WAITING');
+                setTopupPin('');
+
+                // เริ่ม polling ทุก 3 วินาที
+                const interval = setInterval(async () => {
+                    try {
+                        const res = await fetchJSON(`/payments/qr/status/${qrData.chargeId}`);
+                        if (res.status === 'PAID') {
+                            clearInterval(interval);
+                            setQrPollingRef(null);
+                            // อัปเดต wallet หลังจ่ายแล้ว
+                            const updatedMember = await fetchJSON(`/members/${topupMember.id}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(cleanMemberPayload)
+                            });
+                            const dbTxn = await fetchJSON('/transactions/', {
+                                method: 'POST',
+                                body: JSON.stringify(dbTxnPayload)
+                            });
+                            setTransactions(prev => [{ ...uiTxnData, id: dbTxn?.id || newTopupId }, ...prev]);
+                            setMembers(members.map(m => m.id === topupMember.id ? updatedMember : m));
+                            setTopupReceipt({
+                                ...uiTxnData,
+                                paymentMethod: topupMethod,
+                                timestamp: now,
+                                newBalance: updatedMember.wallet
+                            });
+                            setTopupStep('SUCCESS');
+                        }
+                    } catch (err) {
+                        console.error('Polling error:', err);
+                    }
+                }, 3000);
+                setQrPollingRef(interval);
+
+            } catch (err) {
+                alert('ไม่สามารถสร้าง QR ได้: ' + err.message);
+            }
+            return;
+        }
+
+        // CASH flow เหมือนเดิม
         try {
-            // 💾 1. อัปเดตกระเป๋าตังค์ E-Wallet (คราวนี้ Backend รับข้อมูลชิลๆ แน่นอน)
-            // 🌟 พระเอกอยู่ตรงนี้: ใส่คำว่า const updatedMember = ... เพื่อรอรับข้อมูลที่ Backend ตอบกลับมา!
             const updatedMember = await fetchJSON(`/members/${topupMember.id}`, {
                 method: 'PUT',
                 body: JSON.stringify(cleanMemberPayload)
             });
-
-            // 💾 2. บันทึกบิลลงประวัติ
             const dbTxn = await fetchJSON('/transactions/', {
                 method: 'POST',
                 body: JSON.stringify(dbTxnPayload)
             });
-
-            // ✅ 3. อัปเดตหน้าจอให้แสดงยอดใหม่ + Tier ใหม่ทันที!
             setTransactions(prev => [{ ...uiTxnData, id: dbTxn?.id || newTopupId }, ...prev]);
-
-            // 🌟 เปลี่ยนจากการบวกเลขเอง เป็นการเอา updatedMember ที่ได้จาก Backend มาทับเลย!
             setMembers(members.map(m => m.id === topupMember.id ? updatedMember : m));
-
             setTopupReceipt({
                 ...uiTxnData,
                 paymentMethod: topupMethod,
                 timestamp: now,
-                newBalance: updatedMember.wallet // ใช้ยอดใหม่จาก Backend ชัวร์สุด
+                newBalance: updatedMember.wallet
             });
             setTopupStep('SUCCESS');
-
         } catch (error) {
             console.error("Save Error:", error);
-            // กรณีขัดข้อง ก็ให้หน้าจออัปเดตไปก่อน
             setTransactions(prev => [uiTxnData, ...prev]);
             setMembers(members.map(m => m.id === topupMember.id ? { ...m, wallet: newWallet, points: newPoints } : m));
             setTopupReceipt({
@@ -904,6 +947,22 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                 <button onClick={() => { setTopupStep('AMOUNT'); setTopupPin(''); }} className="flex-1 py-4 font-bold text-stone-400 hover:text-stone-600">ย้อนกลับ</button>
                                 <button onClick={handleVerifyTopupPin} disabled={topupPin.length < 6} className={`flex-[2] py-4 text-white font-black rounded-2xl text-lg transition-all ${topupPin.length >= 6 ? 'bg-gradient-to-r from-stone-700 to-stone-900 shadow-lg shadow-stone-800/30' : 'bg-stone-300'}`}>ยืนยันเติมเงิน</button>
                             </div>
+                        </div>
+                    )}
+                    {topupStep === 'QR_WAITING' && (
+                        <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative z-10 animate-bounce-modal flex flex-col items-center text-center border border-white">
+                            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-[1.2rem] flex items-center justify-center mb-4">
+                                <span className="material-symbols-outlined text-3xl">qr_code_2</span>
+                            </div>
+                            <h2 className="text-2xl font-black text-stone-800 mb-1">สแกน QR PromptPay</h2>
+                            <p className="text-stone-500 font-bold text-sm mb-2">คุณ {topupMember.nickname || topupMember.name}</p>
+                            <p className="text-blue-600 font-black text-2xl mb-6">฿{parseFloat(topupAmount).toLocaleString()}</p>
+                            {qrCodeUri
+                                ? <img src={qrCodeUri} alt="PromptPay QR" className="w-56 h-56 rounded-2xl border-4 border-blue-100 mb-6 shadow-lg" />
+                                : <div className="w-56 h-56 rounded-2xl bg-stone-100 flex items-center justify-center mb-6 animate-pulse"><span className="text-stone-400 text-sm font-bold">กำลังโหลด QR...</span></div>
+                            }
+                            <p className="text-stone-400 font-bold text-sm animate-pulse mb-6">⏳ รอการยืนยันการชำระเงิน...</p>
+                            <button onClick={closeTopupModal} className="w-full py-3 font-bold text-stone-400 hover:text-stone-600">ยกเลิก</button>
                         </div>
                     )}
                 </div>

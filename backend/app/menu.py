@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from . import models
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from ..database import get_db
 from . import schemas
 
@@ -14,8 +12,32 @@ def get_menu(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=schemas.MenuItemOut)
 def create_menu(item: schemas.MenuItemCreate, db: Session = Depends(get_db)):
-    db_item = models.MenuItem(**item.model_dump())
+    db_item = models.MenuItem(**{
+        k: v for k, v in item.model_dump().items()
+        if k in ["name_th", "name_en", "price", "category_id", "image", "color"]
+    })
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
+
+@router.put("/{item_id}", response_model=schemas.MenuItemOut)
+def update_menu(item_id: int, item: schemas.MenuItemCreate, db: Session = Depends(get_db)):
+    db_item = db.query(models.MenuItem).filter(models.MenuItem.id == item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in item.model_dump().items():
+        if k in ["name_th", "name_en", "price", "category_id", "image", "color"]:
+            setattr(db_item, k, v)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@router.delete("/{item_id}")
+def delete_menu(item_id: int, db: Session = Depends(get_db)):
+    db_item = db.query(models.MenuItem).filter(models.MenuItem.id == item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(db_item)
+    db.commit()
+    return {"ok": True}

@@ -51,6 +51,7 @@ export default function PosTab({ viewMode }) {
         } else {
             setCart([...cart, {
                 ...item,
+                name: item.name_th || item.name_en || '',
                 cartKey,
                 options: optionText,
                 price: finalPrice,
