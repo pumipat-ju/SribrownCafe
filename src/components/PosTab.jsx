@@ -292,6 +292,7 @@ export default function PosTab({ viewMode }) {
                                 onClick={() => {
                                     if (cart.length === 0) return alert('ตะกร้าว่างเปล่า กรุณาเลือกสินค้าก่อนครับ');
                                     setIsCheckoutOpen(true);
+                                    setIsCartOpen(false);
                                 }}
                                 className={`w-full py-4 font-black rounded-[1.5rem] shadow-[0_10px_20px_-5px_rgba(134,27,0,0.3)] transition-all flex items-center justify-center gap-2 text-lg active:scale-95 ${cart.length === 0
                                     ? 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'

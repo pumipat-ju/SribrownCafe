@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+python-dotenv
+# pywin32 is only for Windows. Install it manually or via conditional pip:
+# pip install pywin32; sys_platform == 'win32'
+pywin32; sys_platform == 'win32'

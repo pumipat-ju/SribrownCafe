@@ -67,3 +67,11 @@ htmlcov/
 *.sqlite3
 *.db
 storage/
+
+# --- Hardware Agent ---
+hardware_agent/.env
+hardware_agent/*.log
+
+# --- Logs ---
+*.log
+logs/

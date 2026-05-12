@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
-import { fetchJSON } from '../api.js';
-import ReceiptPrintout from '../components/ReceiptPrintout'; // 🌟 1. Import Shared Component เข้ามา
+import { fetchJSON, triggerReceiptAndDrawer } from '../api.js';
+import ReceiptPrintout from './ReceiptPrintout'; // 🌟 1. Import Shared Component เข้ามา
 
 export default function CheckoutModal({ onClose }) {
     const { cart, setCart, transactions, setTransactions, currentEmployee, employees, members, setMembers, marketing, generateBillId } = useContext(AppContext);
@@ -371,6 +371,9 @@ export default function CheckoutModal({ onClose }) {
         setTransactions(prev => [newTransaction, ...prev]);
         setCompletedTxn(newTransaction);
         setIsSuccess(true);
+
+        // 🖨️ 🔓 สั่งพิมพ์ใบเสร็จและเปิดเก๊ะ (เฉพาะเงินสดที่เปิดเก๊ะ)
+        triggerReceiptAndDrawer(method, newTransaction, cart);
     };
     
     const handleMemberNumClick = (num) => {
@@ -670,7 +673,7 @@ export default function CheckoutModal({ onClose }) {
             {/* 🔴🌟 MEMBER PIN FLOW OVERLAY (สำหรับตัดเงิน E-Wallet) */}
             {isMemberPinFlow && (
                 <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center text-center">
+                    <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 w-full max-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center text-center">
                         <div className="w-16 h-16 bg-stone-50 border border-stone-200 text-stone-600 rounded-full flex items-center justify-center mb-4"><span className="material-symbols-outlined text-3xl">dialpad</span></div>
                         <h2 className="text-2xl font-black text-stone-800 mb-1">ยืนยันรหัส PIN ลูกค้า</h2>
                         <p className="text-stone-500 font-bold text-sm mb-1">รหัส PIN ของ {selectedMember?.name}</p>
@@ -818,7 +821,6 @@ export default function CheckoutModal({ onClose }) {
                             </div>
                             {/* 🌟 3. เรียกใช้ Component ใบเสร็จ (มันจะล่องหนอยู่ รอเครื่องปริ้นท์ดึงไปพิมพ์) */}
                             <ReceiptPrintout txn={topupReceipt} />
-                            {topupReceipt && <ReceiptPrintout txn={topupReceipt} />}
                         </>
                     )}
                 </div>
