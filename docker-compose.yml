@@ -14,7 +14,7 @@ services:
       - db_data:/var/lib/mysql
 
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: sribrown_backend
@@ -23,15 +23,16 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - KBANK_CLIENT_ID=${KBANK_CLIENT_ID}          
-      - KBANK_CLIENT_SECRET=${KBANK_CLIENT_SECRET}  
-      - KBANK_MERCHANT_ID=${KBANK_MERCHANT_ID}  
+      - KBANK_CLIENT_ID=${KBANK_CLIENT_ID}
+      - KBANK_CLIENT_SECRET=${KBANK_CLIENT_SECRET}
+      - KBANK_MERCHANT_ID=${KBANK_MERCHANT_ID}
       - KBANK_PARTNER_ID=${KBANK_PARTNER_ID}
-      - KBANK_PARTNER_SECRET=${KBANK_PARTNER_SECRET}   
-      - OMISE_PUBLIC_KEY=${OMISE_PUBLIC_KEY}   
-      - OMISE_SECRET_KEY=${OMISE_SECRET_KEY}  
+      - KBANK_PARTNER_SECRET=${KBANK_PARTNER_SECRET}
+      - OMISE_PUBLIC_KEY=${OMISE_PUBLIC_KEY}
+      - OMISE_SECRET_KEY=${OMISE_SECRET_KEY}
     volumes:
       - ./backend:/app
+      - /app/env
     depends_on:
       - db
 

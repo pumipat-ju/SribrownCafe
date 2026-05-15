@@ -13,7 +13,7 @@ class Employee(Base):
     name = Column(String(255), nullable=False)
     pin = Column(String(255), nullable=False)
     role = Column(String(255), default="staff")
-    phone = Column(String, nullable=True)
+    phone = Column(String(20), nullable=True)
 
 
 class Member(Base):
