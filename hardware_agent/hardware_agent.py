@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional # <--- เพิ่มบรรทัดนี้
 import datetime
 import json
 import os
@@ -155,7 +156,7 @@ def list_printers():
     return {"printers": get_available_printers()}
 
 @app.post("/open-drawer")
-def open_drawer(payload: dict | None = None):
+def open_drawer(payload: Optional[dict] = None): # <--- แก้ไขบรรทัดนี้
     payload = payload or {}
     reason = payload.get("reason", "manual_open")
     employee = payload.get("employee", "System")

@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
 import { fetchJSON } from '../api';
+import { toast } from 'react-hot-toast';
 
 export default function MenuTab({ menuAction, setMenuAction }) {
     const {
@@ -101,7 +102,7 @@ export default function MenuTab({ menuAction, setMenuAction }) {
     });
 
     const saveCategory = async () => {
-        if (!newCat.name_th.trim()) return alert('กรุณาระบุชื่อหมวดหมู่ภาษาไทย');
+        if (!newCat.name_th.trim()) return toast.error('กรุณาระบุชื่อหมวดหมู่ภาษาไทย'); // 🌟 เปลี่ยน alert เป็น toast.error
 
         const payload = {
             name_th: newCat.name_th.trim(),
@@ -114,28 +115,27 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                     method: 'PUT',
                     body: JSON.stringify(payload),
                 });
-
                 setCategories(categories.map((c) => (c.id === updated.id ? updated : c)));
             } else {
                 const created = await fetchJSON('/categories', {
                     method: 'POST',
                     body: JSON.stringify(payload),
                 });
-
                 setCategories([...categories, created]);
             }
 
             setIsCatModalOpen(false);
             setEditingCat(null);
             setNewCat({ name_th: '', name_en: '' });
+            toast.success('บันทึกหมวดหมู่สำเร็จ!'); // 🌟 เพิ่ม toast.success เมื่อบันทึกเสร็จ
         } catch (e) {
-            alert('เซฟหมวดหมู่ไม่สำเร็จ: ' + e.message);
+            toast.error('เซฟหมวดหมู่ไม่สำเร็จ: ' + e.message); // 🌟 เปลี่ยน alert เป็น toast.error
         }
     };
 
     const saveMenuItem = async () => {
         if (!newItem.name_th || !newItem.price) {
-            return alert('ระบุชื่อและราคา');
+            return toast.error('ระบุชื่อและราคา'); // 🌟 เปลี่ยน alert เป็น toast.error
         }
 
         const payload = {
@@ -153,16 +153,15 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                     method: 'PUT',
                     body: JSON.stringify(payload),
                 });
-
                 setMenuItems(
                     menuItems.map((m) =>
                         m.id === updated.id
                             ? {
-                                  ...updated,
-                                  cat: updated.category_id,
-                                  name_th: updated.name_th,
-                                  name_en: updated.name_en,
-                              }
+                                ...updated,
+                                cat: updated.category_id,
+                                name_th: updated.name_th,
+                                name_en: updated.name_en,
+                            }
                             : m
                     )
                 );
@@ -171,7 +170,6 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                     method: 'POST',
                     body: JSON.stringify(payload),
                 });
-
                 setMenuItems([
                     {
                         ...created,
@@ -185,19 +183,21 @@ export default function MenuTab({ menuAction, setMenuAction }) {
 
             setIsItemModalOpen(false);
             setEditingItem(null);
+            toast.success('บันทึกเมนูสำเร็จ!'); // 🌟 เพิ่ม toast.success เมื่อบันทึกเสร็จ
         } catch (e) {
-            alert('เซฟเมนูไม่สำเร็จ: ' + e.message);
+            toast.error('เซฟเมนูไม่สำเร็จ: ' + e.message); // 🌟 เปลี่ยน alert เป็น toast.error
         }
     };
 
     const handleDeleteItem = async (id) => {
-        if (!window.confirm('ลบเมนูนี้?')) return;
+        if (!window.confirm('ลบเมนูนี้?')) return; // ปล่อย confirm ไว้เหมือนเดิม เพราะเป็นการให้กดยืนยัน
 
         try {
             await fetchJSON(`/menu/${id}`, { method: 'DELETE' });
             setMenuItems(menuItems.filter((m) => m.id !== id));
+            toast.success('ลบเมนูเรียบร้อย'); // 🌟 เพิ่มแจ้งเตือนเมื่อลบเสร็จ
         } catch (e) {
-            alert('ลบไม่สำเร็จ: ' + e.message);
+            toast.error('ลบไม่สำเร็จ: ' + e.message); // 🌟 เปลี่ยน alert เป็น toast.error
         }
     };
 
@@ -207,8 +207,9 @@ export default function MenuTab({ menuAction, setMenuAction }) {
         try {
             await fetchJSON(`/categories/${id}`, { method: 'DELETE' });
             setCategories(categories.filter((c) => c.id !== id));
+            toast.success('ลบหมวดหมู่เรียบร้อย'); // 🌟 เพิ่มแจ้งเตือนเมื่อลบเสร็จ
         } catch (e) {
-            alert('ลบหมวดหมู่ไม่สำเร็จ: ' + e.message);
+            toast.error('ลบหมวดหมู่ไม่สำเร็จ: ' + e.message); // 🌟 เปลี่ยน alert เป็น toast.error
         }
     };
 
@@ -335,9 +336,8 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                         <div className="space-y-4 flex-1 overflow-y-auto no-scrollbar pr-2 pb-4">
                             <div className="flex gap-4 items-center bg-stone-50 border p-4 rounded-2xl">
                                 <div
-                                    className={`w-20 h-20 lg:w-24 lg:h-24 rounded-2xl border-2 border-stone-200 overflow-hidden flex items-center justify-center shrink-0 relative group/preview ${
-                                        !newItem.image ? newItem.color : 'bg-white'
-                                    }`}
+                                    className={`w-20 h-20 lg:w-24 lg:h-24 rounded-2xl border-2 border-stone-200 overflow-hidden flex items-center justify-center shrink-0 relative group/preview ${!newItem.image ? newItem.color : 'bg-white'
+                                        }`}
                                 >
                                     {newItem.image ? (
                                         <>
@@ -469,13 +469,11 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                             onClick={() =>
                                                 setNewItem({ ...newItem, color: c.bg })
                                             }
-                                            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
-                                                c.bg
-                                            } ${
-                                                newItem.color === c.bg
+                                            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${c.bg
+                                                } ${newItem.color === c.bg
                                                     ? 'border-stone-400 scale-110 shadow-md ring-2 ring-stone-200'
                                                     : 'border-transparent'
-                                            }`}
+                                                }`}
                                         >
                                             {newItem.color === c.bg && (
                                                 <span className="material-symbols-outlined text-[14px]">
@@ -735,7 +733,7 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                             <button
                                 onClick={() => {
                                     if (!newOptionGroup.name_th) {
-                                        return alert('กรุณาระบุชื่อกลุ่ม');
+                                        return toast.error('กรุณาระบุชื่อกลุ่ม'); // 🌟 เปลี่ยน alert เป็น toast.error
                                     }
 
                                     if (editingOptionGroup) {
@@ -754,6 +752,7 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                     }
 
                                     setIsCreateGroupModalOpen(false);
+                                    toast.success('บันทึกกลุ่มตัวเลือกสำเร็จ!'); // 🌟 เพิ่มตรงนี้
                                 }}
                                 className="flex-[2] py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl"
                             >
@@ -799,9 +798,8 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                     onDragStart={() => handleDragStartCat(idx)}
                                     onDragOver={(e) => e.preventDefault()}
                                     onDrop={() => handleDropCat(idx)}
-                                    className={`bg-stone-50 p-2.5 lg:p-3 rounded-2xl border border-transparent flex justify-between items-center text-[12px] lg:text-[13px] font-bold group hover:bg-white hover:border-amber-200 cursor-move ${
-                                        draggedIdx === idx ? 'opacity-20' : ''
-                                    }`}
+                                    className={`bg-stone-50 p-2.5 lg:p-3 rounded-2xl border border-transparent flex justify-between items-center text-[12px] lg:text-[13px] font-bold group hover:bg-white hover:border-amber-200 cursor-move ${draggedIdx === idx ? 'opacity-20' : ''
+                                        }`}
                                 >
                                     <div className="flex items-center gap-2 overflow-hidden">
                                         <span className="material-symbols-outlined text-stone-300 text-sm shrink-0">
@@ -848,11 +846,10 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                         <div className="flex gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto pb-1 sm:pb-0">
                             <button
                                 onClick={() => setActiveCatFilter('all')}
-                                className={`shrink-0 px-4 py-2 text-[11px] rounded-full font-bold transition-all ${
-                                    activeCatFilter === 'all'
-                                        ? 'bg-stone-800 text-white'
-                                        : 'bg-white border text-stone-400'
-                                }`}
+                                className={`shrink-0 px-4 py-2 text-[11px] rounded-full font-bold transition-all ${activeCatFilter === 'all'
+                                    ? 'bg-stone-800 text-white'
+                                    : 'bg-white border text-stone-400'
+                                    }`}
                             >
                                 ทั้งหมด
                             </button>
@@ -861,11 +858,10 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                 <button
                                     key={c.id}
                                     onClick={() => setActiveCatFilter(c.id)}
-                                    className={`shrink-0 px-4 py-2 text-[11px] rounded-full font-bold transition-all ${
-                                        String(activeCatFilter) === String(c.id)
-                                            ? 'bg-[#861b00] text-white'
-                                            : 'bg-white border text-stone-400'
-                                    }`}
+                                    className={`shrink-0 px-4 py-2 text-[11px] rounded-full font-bold transition-all ${String(activeCatFilter) === String(c.id)
+                                        ? 'bg-[#861b00] text-white'
+                                        : 'bg-white border text-stone-400'
+                                        }`}
                                 >
                                     {getCategoryNameTH(c)}
                                 </button>
@@ -913,9 +909,8 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                             onDragStart={() => handleDragStartItem(idx)}
                                             onDragOver={(e) => e.preventDefault()}
                                             onDrop={() => handleDropItem(idx)}
-                                            className={`hover:bg-stone-50/50 group transition-colors cursor-move ${
-                                                draggedIdx === idx ? 'opacity-20' : ''
-                                            }`}
+                                            className={`hover:bg-stone-50/50 group transition-colors cursor-move ${draggedIdx === idx ? 'opacity-20' : ''
+                                                }`}
                                         >
                                             <td className="py-3 pl-4 text-center">
                                                 <span className="material-symbols-outlined text-stone-200 group-hover:text-stone-400 text-[18px]">
@@ -926,12 +921,11 @@ export default function MenuTab({ menuAction, setMenuAction }) {
                                             <td className="py-3 px-4">
                                                 <div className="flex items-center gap-3">
                                                     <div
-                                                        className={`w-10 h-10 lg:w-12 lg:h-12 rounded-xl overflow-hidden border border-stone-200 shrink-0 flex items-center justify-center ${
-                                                            !it.image
-                                                                ? it.color ||
-                                                                  'bg-stone-200'
-                                                                : 'bg-white'
-                                                        }`}
+                                                        className={`w-10 h-10 lg:w-12 lg:h-12 rounded-xl overflow-hidden border border-stone-200 shrink-0 flex items-center justify-center ${!it.image
+                                                            ? it.color ||
+                                                            'bg-stone-200'
+                                                            : 'bg-white'
+                                                            }`}
                                                     >
                                                         {it.image ? (
                                                             <img

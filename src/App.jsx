@@ -1,16 +1,22 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-// 1. นำเข้า AppProvider (ตัวกระจายข้อมูล)
+// 🌟 1. นำเข้า Toaster จาก react-hot-toast
+import { Toaster } from 'react-hot-toast';
+
+// 2. นำเข้า AppProvider (ตัวกระจายข้อมูล)
 import { AppProvider } from './context/AppContext';
 
-// 2. นำเข้าหน้าจอต่างๆ
+// 3. นำเข้าหน้าจอต่างๆ
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 
 export default function App() {
   return (
     <AppProvider>
+      {/* 🌟 2. วาง Toaster ไว้ตรงนี้เลยครับ (ตั้งค่าให้เด้งมุมขวาบน) */}
+      <Toaster position="top-right" />
+
       <BrowserRouter>
         <Routes>
           {/* หน้าแรกสุดคือหน้า Login */}
