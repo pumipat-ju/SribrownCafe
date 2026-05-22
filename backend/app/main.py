@@ -96,14 +96,73 @@ def run_migrations():
     try:
         from sqlalchemy import text
         
-        # เพิ่ม phone column ถ้ายังไม่มี
+        # 1. Employees: phone
         try:
             db.execute(text("ALTER TABLE employees ADD COLUMN phone VARCHAR(255)"))
             db.commit()
             print("✅ Migration: added phone column to employees")
-        except Exception as e:
+        except Exception:
             db.rollback()
-            print(f"ℹ️ Migration skipped (column may already exist): {e}")
+
+        # 2. Categories
+        # Add name_th
+        try:
+            db.execute(text("ALTER TABLE categories ADD COLUMN name_th VARCHAR(100)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Add name_en
+        try:
+            db.execute(text("ALTER TABLE categories ADD COLUMN name_en VARCHAR(100)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Migrate data
+        try:
+            db.execute(text("UPDATE categories SET name_th = name WHERE name_th IS NULL"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Drop name
+        try:
+            db.execute(text("ALTER TABLE categories DROP COLUMN name"))
+            db.commit()
+            print("✅ Migration: dropped name from categories")
+        except Exception:
+            db.rollback()
+
+        # 3. MenuItems
+        # Add name_th
+        try:
+            db.execute(text("ALTER TABLE menu_items ADD COLUMN name_th VARCHAR(100)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Add name_en
+        try:
+            db.execute(text("ALTER TABLE menu_items ADD COLUMN name_en VARCHAR(100)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Add color
+        try:
+            db.execute(text("ALTER TABLE menu_items ADD COLUMN color VARCHAR(100)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Migrate data
+        try:
+            db.execute(text("UPDATE menu_items SET name_th = name WHERE name_th IS NULL"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Drop name
+        try:
+            db.execute(text("ALTER TABLE menu_items DROP COLUMN name"))
+            db.commit()
+            print("✅ Migration: dropped name from menu_items")
+        except Exception:
+            db.rollback()
             
     finally:
         db.close()

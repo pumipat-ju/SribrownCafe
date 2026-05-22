@@ -9,7 +9,9 @@ import subprocess
 import shutil
 from dotenv import load_dotenv
 
+print(f"DEBUG: HARDWARE_MOCK before load_dotenv: {os.getenv('HARDWARE_MOCK')}")
 load_dotenv()
+print(f"DEBUG: HARDWARE_MOCK after load_dotenv: {os.getenv('HARDWARE_MOCK')}")
 # --- OS Detection ---
 CURRENT_OS = platform.system()  # "Windows", "Darwin" (macOS), "Linux"
 
@@ -77,7 +79,7 @@ def get_available_printers():
     return printers
 
 def raw_print(data: bytes):
-    if HARDWARE_MOCK:
+    if os.getenv("HARDWARE_MOCK", "false").lower() == "true":
         print("\n--- [MOCK PRINT START] ---")
         try:
             print(data.decode(PRINTER_ENCODING, errors="replace"))
@@ -138,6 +140,9 @@ def raw_print(data: bytes):
     else:
         raise HTTPException(status_code=500, detail=f"Unsupported OS: {CURRENT_OS}")
 
+def is_mock_mode():
+    return os.getenv("HARDWARE_MOCK", "false").lower() == "true"
+
 # --- Endpoints ---
 
 @app.get("/")
@@ -145,7 +150,7 @@ def root():
     return {
         "status": "hardware agent running",
         "os": CURRENT_OS,
-        "mock_mode": HARDWARE_MOCK,
+        "mock_mode": is_mock_mode(),
         "printer_name": PRINTER_NAME,
         "encoding": PRINTER_ENCODING,
         "available_printers": get_available_printers()
@@ -156,21 +161,20 @@ def list_printers():
     return {"printers": get_available_printers()}
 
 @app.post("/open-drawer")
-def open_drawer(payload: Optional[dict] = None): # <--- แก้ไขบรรทัดนี้
+def open_drawer(payload: Optional[dict] = None):
     payload = payload or {}
     reason = payload.get("reason", "manual_open")
     employee = payload.get("employee", "System")
-    
-    if HARDWARE_MOCK:
+
+    if is_mock_mode():
         print(f"--- [MOCK] Drawer Opened (Reason: {reason}, By: {employee}) ---")
         return {"status": "success", "message": f"mock drawer opened for {reason}"}
-    
+
     try:
         print(f"Opening drawer. Reason: {reason}, Employee: {employee}")
         raw_print(CMD_DRAWER_KICK)
         return {"status": "success", "message": "drawer opened"}
     except Exception as e:
-        # Check if it was a printer not found error
         if "not found" in str(e).lower():
             raise HTTPException(status_code=404, detail=str(e))
         raise
@@ -179,8 +183,8 @@ def open_drawer(payload: Optional[dict] = None): # <--- แก้ไขบรร
 def print_receipt(payload: dict):
     # Some payloads might wrap txn inside txn
     txn = payload.get("txn", payload)
-    
-    if HARDWARE_MOCK:
+
+    if is_mock_mode():
         print("--- [MOCK] Printing Receipt Payload ---")
         print(json.dumps(txn, indent=2, ensure_ascii=False))
 
