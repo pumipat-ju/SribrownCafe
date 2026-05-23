@@ -1,6 +1,7 @@
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../context/AppContext';
 import { fetchJSON, triggerDrawer } from '../api.js';
+import ReceiptPrintout from './ReceiptPrintout';
 
 export default function CashTab() {
     const {
@@ -15,8 +16,15 @@ export default function CashTab() {
     const [formData, setFormData] = useState({
         category: '🧊 น้ำแข็ง',
         note: '',
-        amount: '',
+        amount: '',// ... (ในส่วนท้ายของไฟล์ CashTab.jsx ก่อนปิด div หลัก)
     });
+
+    const [viewingTxn, setViewingTxn] = useState(null);
+    const [showVoidModal, setShowVoidModal] = useState(false);
+    const [voidPin, setVoidPin] = useState('');
+    const [voidReason, setVoidReason] = useState('');
+    const [isVoiding, setIsVoiding] = useState(false);
+    const [voidError, setVoidError] = useState('');
 
     const handleKickDrawer = async () => {
         await triggerDrawer('manual_open', currentEmployee?.name || 'System');
@@ -54,19 +62,16 @@ export default function CashTab() {
 
         const cashTxns = (transactions || []).filter((txn) => {
             const type = String(txn.type || '').toUpperCase();
-            const method = String(txn.method || txn.paymentMethod || '').toUpperCase();
             const status = String(txn.status || 'COMPLETED').toUpperCase();
 
             const isCurrentShift = shift?.isOpen
                 ? getTxnTime(txn) >= shiftStartTime
                 : false;
 
-            const isCashRelated =
-                method === 'CASH' ||
-                type === 'INCOME' ||
-                type === 'EXPENSE';
+            // กรองให้เหลือแค่รายการที่บันทึกเอง (INCOME/EXPENSE)
+            const isUserInitiated = type === 'INCOME' || type === 'EXPENSE';
 
-            return status !== 'VOIDED' && isCurrentShift && isCashRelated;
+            return status !== 'VOIDED' && isCurrentShift && isUserInitiated;
         });
 
         let totalIn = 0;
@@ -93,6 +98,27 @@ export default function CashTab() {
     }, [shift, transactions]);
 
     const cashTransactions = stats.cashTransactions;
+
+    const handleVoidSubmit = async (e) => {
+        e.preventDefault();
+        setVoidError('');
+        setIsVoiding(true);
+        try {
+            const updatedTxn = await fetchJSON(`/transactions/${viewingTxn.id}/void/`, {
+                method: 'PUT',
+                body: JSON.stringify({ pin: voidPin, reason: voidReason })
+            });
+            setTransactions(prev => prev.map(t => t.id === updatedTxn.id ? { ...t, status: 'VOIDED', void_reason: updatedTxn.void_reason } : t));
+            setShowVoidModal(false);
+            setVoidPin('');
+            setVoidReason('');
+            setViewingTxn(null);
+        } catch (err) {
+            setVoidError(err.message || 'รหัส PIN ไม่ถูกต้อง');
+        } finally {
+            setIsVoiding(false);
+        }
+    };
 
     const handleSave = async () => {
         const amount = parseFloat(formData.amount);
@@ -136,7 +162,15 @@ export default function CashTab() {
                 body: JSON.stringify(txnPayload),
             });
 
-            setTransactions((prev) => [savedTxn, ...prev]);
+            const dt = new Date(savedTxn.created_at || savedTxn.date_raw);
+            const formattedTxn = {
+                ...savedTxn,
+                dateRaw: savedTxn.created_at || savedTxn.date_raw,
+                date: dt.toLocaleDateString('th-TH'),
+                time: dt.toLocaleTimeString('th-TH').slice(0, 5) + ' น.'
+            };
+
+            setTransactions((prev) => [formattedTxn, ...prev]);
             setFormData({ category: '🧊 น้ำแข็ง', note: '', amount: '' });
             setModalMode(null);
 
@@ -399,9 +433,10 @@ export default function CashTab() {
                                     const amount = parseFloat(txn.amount || txn.total || 0);
 
                                     return (
-                                        <tr
+                                    <tr
                                             key={txn.id}
-                                            className="hover:bg-stone-50/50 transition-colors group"
+                                            onClick={() => setViewingTxn(txn)}
+                                            className="hover:bg-stone-50/50 transition-colors group cursor-pointer"
                                         >
                                             <td className="p-4 pl-8 text-[11px] font-bold text-stone-500 whitespace-nowrap">
                                                 {(() => {
@@ -487,6 +522,103 @@ export default function CashTab() {
                     </table>
                 </div>
             </div>
+
+            {viewingTxn && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
+                    <div className="absolute inset-0" onClick={() => setViewingTxn(null)} />
+                    <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full relative z-10 shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#861b00] to-red-600" />
+                        
+                        <div className="text-center mb-6">
+                            <h4 className="font-black text-lg text-stone-800 uppercase tracking-widest">Sri Brown Coffee</h4>
+                            <p className="text-[10px] text-stone-400 font-bold uppercase">Transaction Receipt</p>
+                        </div>
+
+                        <div className="space-y-3 mb-8 text-[11px] font-bold text-stone-500 border-b border-dashed border-stone-200 pb-4">
+                            <div className="flex justify-between"><span>เลขที่บิล:</span><span className="text-stone-800">{viewingTxn.bill_id || viewingTxn.id}</span></div>
+                            <div className="flex justify-between"><span>วันที่:</span><span className="text-stone-800">{viewingTxn.date} | {viewingTxn.time}</span></div>
+                            <div className="flex justify-between"><span>พนักงาน:</span><span className="text-stone-800">{viewingTxn.cashier}</span></div>
+                            <div className="flex justify-between"><span>ช่องทาง:</span><span className="text-stone-800">{viewingTxn.method || viewingTxn.paymentMethod}</span></div>
+                        </div>
+
+                        <div className="space-y-4 mb-8 max-h-[300px] overflow-y-auto no-scrollbar">
+                            {(() => {
+                                let displayItems = [];
+                                if (typeof viewingTxn.items === 'string') {
+                                    try { displayItems = JSON.parse(viewingTxn.items); } catch (e) { }
+                                } else if (Array.isArray(viewingTxn.items)) {
+                                    displayItems = viewingTxn.items;
+                                }
+                                if (displayItems.length > 0) {
+                                    return displayItems.map((item, i) => (
+                                        <div key={i} className="flex justify-between items-start">
+                                            <div className="flex-1 pr-4">
+                                                <p className="text-[12px] font-black text-stone-800">{item.name_th || item.name_en || item.name}</p>
+                                                <p className="text-[10px] text-stone-400">{item.qty} x ฿{item.price.toLocaleString()}</p>
+                                            </div>
+                                            <span className="text-[12px] font-black text-stone-800">฿{(item.qty * item.price).toLocaleString()}</span>
+                                        </div>
+                                    ));
+                                } else {
+                                    return <p className="text-[12px] font-black text-stone-800 text-center py-4">{viewingTxn.desc}</p>;
+                                }
+                            })()}
+                        </div>
+
+                        <div className="bg-stone-50 p-4 rounded-2xl mb-6">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs font-black text-stone-400 uppercase">ยอดรวมสุทธิ</span>
+                                <span className="text-2xl font-black text-[#861b00]">฿{Math.abs(parseFloat(viewingTxn.amount || viewingTxn.total)).toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button onClick={() => setViewingTxn(null)} className="flex-1 py-4 bg-stone-100 font-bold text-stone-500 rounded-2xl hover:bg-stone-200 transition-all">ปิด</button>
+                            {viewingTxn.status !== 'VOIDED' && (
+                                <button onClick={() => setShowVoidModal(true)} className="flex-1 py-4 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all border border-red-200">ยกเลิกบิล</button>
+                            )}
+                        </div>
+
+                        {showVoidModal && (
+                            <div className="absolute inset-0 z-20 bg-white/90 backdrop-blur-sm rounded-[2.5rem] flex items-center justify-center p-6 animate-in fade-in zoom-in-95">
+                                <form onSubmit={handleVoidSubmit} className="bg-white p-6 rounded-3xl shadow-xl border border-red-100 w-full text-center max-h-full overflow-y-auto">
+                                    <span className="material-symbols-outlined text-4xl text-red-500 mb-2">warning</span>
+                                    <h4 className="font-black text-lg text-stone-800 mb-1">ยืนยันการยกเลิกบิล</h4>
+                                    <p className="text-xs text-stone-500 font-bold mb-4">โปรดระบุหมายเหตุและใส่ PIN เพื่อยืนยัน</p>
+                                    
+                                    <div className="text-left mb-4">
+                                        <label className="text-[10px] font-black text-stone-400 uppercase ml-2 mb-1 block">เหตุผลที่ยกเลิก</label>
+                                        <select 
+                                            onChange={(e) => {
+                                                if (e.target.value === 'อื่นๆ') setVoidReason('');
+                                                else setVoidReason(e.target.value);
+                                            }}
+                                            className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-red-500 mb-2"
+                                        >
+                                            <option value="">-- เลือกเหตุผล --</option>
+                                            <option value="ลูกค้าเปลี่ยนใจ">ลูกค้าเปลี่ยนใจ</option>
+                                            <option value="พนักงานคีย์ผิด">พนักงานคีย์ผิด / รายการผิด</option>
+                                            <option value="บิลซ้ำ">บิลซ้ำ</option>
+                                            <option value="อื่นๆ">อื่นๆ (ระบุเอง)</option>
+                                        </select>
+                                        {(voidReason === '' || !['ลูกค้าเปลี่ยนใจ', 'พนักงานคีย์ผิด', 'บิลซ้ำ'].includes(voidReason)) && (
+                                            <textarea value={voidReason} onChange={e => setVoidReason(e.target.value)} placeholder="ระบุเหตุผลอื่นๆ..." required className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-24" />
+                                        )}
+                                    </div>
+
+                                    <input type="password" value={voidPin} onChange={e => setVoidPin(e.target.value)} placeholder="PIN ผู้จัดการ" required className="w-full text-center text-2xl tracking-[0.5em] font-black py-3 bg-stone-100 rounded-xl mb-2 focus:outline-none focus:ring-2 focus:ring-red-500" />
+                                    {voidError && <p className="text-[10px] text-red-500 font-bold mb-4">{voidError}</p>}
+                                    
+                                    <div className="flex gap-2 mt-4">
+                                        <button type="button" onClick={() => { setShowVoidModal(false); setVoidPin(''); setVoidReason(''); setVoidError(''); }} className="flex-1 py-3 bg-stone-100 text-stone-500 font-bold rounded-xl hover:bg-stone-200">กลับ</button>
+                                        <button type="submit" disabled={isVoiding || !voidPin || !voidReason} className="flex-1 py-3 bg-red-600 text-white font-black rounded-xl hover:bg-red-700 disabled:opacity-50">{isVoiding ? 'กำลังยกเลิก...' : 'ยืนยัน'}</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
