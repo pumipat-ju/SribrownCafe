@@ -13,6 +13,7 @@ import MarketingTab from '../components/MarketingTab';
 import InventoryTab from '../components/InventoryTab';
 import DashboardTab from '../components/DashboardTab';
 import PosMenuTab from '../components/PosMenuTab';
+import SettingsTab from '../components/SettingsTab';
 import ReceiptPrintout from '../components/ReceiptPrintout';
 
 export default function AdminPage() {
@@ -338,6 +339,7 @@ export default function AdminPage() {
         { id: 'inventory', icon: 'inventory_2', label: 'Inventory' },
         { id: 'cash', icon: 'payments', label: 'Cash Drawer' },
         { id: 'history', icon: 'receipt_long', label: 'Transaction History' },
+        { id: 'settings', icon: 'settings', label: 'Settings' },
     ];
 
     return (
@@ -407,6 +409,7 @@ export default function AdminPage() {
                             <Route path="employees" element={<EmployeesTab />} />
                             <Route path="cash" element={<CashTab />} />
                             <Route path="inventory" element={<InventoryTab />} />
+                            <Route path="settings" element={<SettingsTab />} />
                             {/* Default path redirects to Dashboard or Menu */}
                             <Route path="/" element={<Navigate to="pos-menu" replace />} />
                         </Routes>

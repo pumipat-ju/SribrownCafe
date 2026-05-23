@@ -63,3 +63,20 @@ export async function triggerReceiptAndDrawer(method, transactionData, cartItems
         return false;
     }
 }
+
+/**
+ * 🖨️ ดึงรายชื่อเครื่องพิมพ์ที่ใช้งานได้ และเครื่องพิมพ์ปัจจุบัน
+ */
+export async function getPrinters() {
+    return fetchJSON('/hardware/printers');
+}
+
+/**
+ * 🖨️ เปลี่ยนเครื่องพิมพ์ที่ใช้งาน
+ */
+export async function setPrinter(printerName) {
+    return fetchJSON('/hardware/set-printer', {
+        method: 'POST',
+        body: JSON.stringify({ printer_name: printerName }),
+    });
+}

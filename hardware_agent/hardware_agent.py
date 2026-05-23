@@ -1,13 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional # <--- เพิ่มบรรทัดนี้
+from typing import Optional
 import datetime
 import json
 import os
 import platform
 import subprocess
 import shutil
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 print(f"DEBUG: HARDWARE_MOCK before load_dotenv: {os.getenv('HARDWARE_MOCK')}")
 load_dotenv()
@@ -42,6 +42,7 @@ PRINTER_ENCODING = os.getenv("PRINTER_ENCODING", "cp874") # cp874 for Thai ESC/P
 
 # --- Printer Commands (ESC/POS) ---
 CMD_INIT = b"\x1b\x40"
+CMD_SELECT_THAI = b"\x1b\x74\x1e"  # ESC t 30 (Select CP874 Thai Character Table)
 CMD_DRAWER_KICK = b"\x1b\x70\x00\x19\xfa"
 CMD_CUT = b"\x1d\x56\x42\x00"
 
@@ -78,15 +79,76 @@ def get_available_printers():
         print(f"Error listing printers: {e}")
     return printers
 
+def check_printer_status():
+    if os.getenv("HARDWARE_MOCK", "false").lower() == "true":
+        return
+
+    if CURRENT_OS == "Windows":
+        if win32print is None:
+            return
+        
+        hprinter = None
+        try:
+            hprinter = win32print.OpenPrinter(PRINTER_NAME)
+            info = win32print.GetPrinter(hprinter, 2)
+            status = info.get("Status", 0)
+            
+            if status & 0x00000080:  # PRINTER_STATUS_OFFLINE
+                raise Exception("เครื่องพิมพ์ออฟไลน์ (Offline) กรุณาเปิดเครื่องพิมพ์หรือตรวจสอบสายการเชื่อมต่อ")
+            if status & 0x00000010:  # PRINTER_STATUS_PAPER_OUT
+                raise Exception("กระดาษพิมพ์ใบเสร็จหมด (Paper Out) กรุณาใส่กระดาษม้วนใหม่")
+            if status & 0x00000400:  # PRINTER_STATUS_DOOR_OPEN
+                raise Exception("ฝาครอบเครื่องพิมพ์เปิดอยู่ (Door Open) กรุณาปิดฝาครอบให้สนิท")
+            if status & 0x00000008:  # PRINTER_STATUS_PAPER_JAM
+                raise Exception("กระดาษติดในหัวพิมพ์ (Paper Jam) กรุณาตรวจสอบภายในเครื่อง")
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(status_code=503, detail=str(e))
+        finally:
+            if hprinter:
+                win32print.ClosePrinter(hprinter)
+
+    elif CURRENT_OS in ["Darwin", "Linux"]:
+        if not shutil.which("lpstat"):
+            return
+        try:
+            output = subprocess.check_output(["lpstat", "-p", PRINTER_NAME], text=True)
+            if "disabled" in output.lower() or "offline" in output.lower():
+                raise Exception("เครื่องพิมพ์ปิดการใช้งานหรือออฟไลน์ (Disabled/Offline)")
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(status_code=503, detail=str(e))
+
 def raw_print(data: bytes):
     if os.getenv("HARDWARE_MOCK", "false").lower() == "true":
         print("\n--- [MOCK PRINT START] ---")
+        # Try decoding using the specific encoding
         try:
-            print(data.decode(PRINTER_ENCODING, errors="replace"))
+            # We need to manually handle the binary commands if we want to see text
+            # Replace common ESC/POS commands for cleaner mock output
+            readable_data = data.replace(CMD_INIT, b"")
+            readable_data = readable_data.replace(CMD_SELECT_THAI, b"")
+            readable_data = readable_data.replace(CMD_DRAWER_KICK, b"[DRAWER KICK]")
+            readable_data = readable_data.replace(CMD_CUT, b"\n[CUT]\n")
+            
+            # Remove align commands for cleaner text display
+            # They usually start with \x1b\x61
+            import re
+            readable_data = re.sub(b"\x1b\x61[\x00-\x02]", b"", readable_data)
+            
+            # Remove double size commands
+            readable_data = re.sub(b"\x1d\x21[\x00-\xff]", b"", readable_data)
+
+            print(readable_data.decode(PRINTER_ENCODING, errors="replace"))
         except:
             print(f"RAW (HEX): {data.hex()}")
         print("--- [MOCK PRINT END] ---\n")
         return
+
+    # ตรวจสอบสถานะเครื่องพิมพ์จริงก่อนส่งคำสั่งพิมพ์
+    check_printer_status()
 
     if CURRENT_OS == "Windows":
         if win32print is None:
@@ -158,7 +220,37 @@ def root():
 
 @app.get("/printers")
 def list_printers():
-    return {"printers": get_available_printers()}
+    return {
+        "printers": get_available_printers(),
+        "current": PRINTER_NAME
+    }
+
+@app.post("/set-printer")
+def set_printer(payload: dict):
+    global PRINTER_NAME
+    new_name = payload.get("printer_name", "").strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="printer_name is required")
+
+    available = get_available_printers()
+    if available and new_name not in available:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Printer '{new_name}' not found. Available: {', '.join(available)}"
+        )
+
+    PRINTER_NAME = new_name
+    print(f"[CONFIG] Printer changed to: {PRINTER_NAME}")
+
+    # Save to .env permanently
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    try:
+        set_key(env_path, "PRINTER_NAME", new_name)
+        print(f"[CONFIG] Saved {new_name} to {env_path}")
+    except Exception as e:
+        print(f"[ERROR] Failed to save to .env: {e}")
+
+    return {"status": "success", "printer_name": PRINTER_NAME}
 
 @app.post("/open-drawer")
 def open_drawer(payload: Optional[dict] = None):
@@ -179,15 +271,7 @@ def open_drawer(payload: Optional[dict] = None):
             raise HTTPException(status_code=404, detail=str(e))
         raise
 
-@app.post("/print-receipt")
-def print_receipt(payload: dict):
-    # Some payloads might wrap txn inside txn
-    txn = payload.get("txn", payload)
-
-    if is_mock_mode():
-        print("--- [MOCK] Printing Receipt Payload ---")
-        print(json.dumps(txn, indent=2, ensure_ascii=False))
-
+def generate_receipt_data(txn: dict, kick_drawer: bool = False) -> bytes:
     items = txn.get("items", [])
     if isinstance(items, str):
         try:
@@ -198,6 +282,23 @@ def print_receipt(payload: dict):
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
     data = CMD_INIT
+    if kick_drawer:
+        data += CMD_DRAWER_KICK
+    data += CMD_SELECT_THAI
+
+    # 🌟 Add Queue Number at the top
+    queue = txn.get("queueNumber") or "-"
+
+    # 🌟 Add to mock log explicitly
+    if is_mock_mode():
+        print(f"--- [MOCK] QUEUE: {queue} ---")
+
+    data += get_align_cmd("center")
+    data += b"\x1d\x21\x11" # Double height/width
+    data += b"QUEUE: " + str(queue).encode(PRINTER_ENCODING, errors="replace") + b"\n"
+    data += b"\x1d\x21\x00" # Normal size
+    data += line("-" * 32)
+
     data += line("SRI BROWN", "center")
     data += line("Coffee Roastery", "center")
     data += line("-" * 32)
@@ -242,21 +343,33 @@ def print_receipt(payload: dict):
     data += line("")
     data += line("")
     data += CMD_CUT
+    return data
 
+@app.post("/print-receipt")
+def print_receipt(payload: dict):
+    # Some payloads might wrap txn inside txn
+    txn = payload.get("txn", payload)
+
+    if is_mock_mode():
+        print("--- [MOCK] Printing Receipt Payload ---")
+        print(json.dumps(txn, indent=2, ensure_ascii=False))
+
+    data = generate_receipt_data(txn, kick_drawer=False)
     raw_print(data)
 
     return {"status": "success", "message": "receipt printed"}
 
 @app.post("/print-and-open")
 def print_and_open(payload: dict):
-    # Print receipt first
-    print_receipt(payload)
-    
-    # Then open drawer
-    if HARDWARE_MOCK:
+    txn = payload.get("txn", payload)
+
+    if is_mock_mode():
+        print("--- [MOCK] Printing Receipt Payload (with Drawer Kick) ---")
+        print(json.dumps(txn, indent=2, ensure_ascii=False))
         print("--- [MOCK] Drawer Opened ---")
-    else:
-        raw_print(CMD_DRAWER_KICK)
+
+    data = generate_receipt_data(txn, kick_drawer=True)
+    raw_print(data)
     
     return {"status": "success", "message": "receipt printed and drawer opened"}
 

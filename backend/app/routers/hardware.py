@@ -33,6 +33,26 @@ def get_printers():
         )
 
 
+@router.post("/set-printer")
+def set_printer(payload: dict):
+    try:
+        r = requests.post(
+            f"{HARDWARE_AGENT_URL}/set-printer",
+            json=payload,
+            timeout=5,
+        )
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.HTTPError as e:
+        detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+        raise HTTPException(status_code=e.response.status_code if e.response else 500, detail=detail)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Set printer failed: {str(e)}",
+        )
+
+
 @router.post("/open-drawer")
 def open_drawer(payload: dict | None = None):
     try:

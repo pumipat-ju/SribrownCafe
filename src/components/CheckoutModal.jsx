@@ -37,6 +37,8 @@ export default function CheckoutModal({ onClose }) {
     const [qrImage, setQrImage] = useState(null);      
     const [qrStatus, setQrStatus] = useState('idle');  
     const [qrPollRef, setQrPollRef] = useState(null);  
+    const [queueNumber, setQueueNumber] = useState('');
+    const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
     // ==========================================
     // 🧮 ระบบคำนวณตัวเลข
@@ -335,6 +337,7 @@ export default function CheckoutModal({ onClose }) {
             amount: netTotal,
             subtotal: subtotal,
             discount: discount,
+            queueNumber: queueNumber, // 🌟 เพิ่มคิว
             promotionName: appliedPromotion?.name || appliedPromoName || null, // 🌟 2. แปะป้ายชื่อโปรโมชั่นเข้าไปในบิล!
             couponName: appliedCoupon?.name || null,
             beforeVat: beforeVat,
@@ -477,6 +480,36 @@ export default function CheckoutModal({ onClose }) {
         setTopupReceivedAmount('');
         setAuthEmployee(null); // 🌟 ล้างค่าพนักงานตอนปิดหน้าต่าง
     };
+
+    // 🔴🌟 QUEUE NUMBER MODAL
+    const QueueModal = () => (
+        isQueueModalOpen && (
+            <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm animate-in fade-in print:hidden">
+                <div className="bg-white rounded-[2rem] p-6 w-full max-w-xs shadow-2xl animate-in zoom-in-95 flex flex-col items-center">
+                    <h3 className="text-lg font-black text-stone-800 mb-4">ระบุคิวลูกค้า</h3>
+                    <div className="w-full bg-stone-50 border-2 border-stone-200 rounded-2xl p-4 text-center text-3xl font-black text-stone-800 mb-6">
+                        {queueNumber || '...'}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 w-full mb-6">
+                        {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'DEL'].map(num => (
+                            <button 
+                                key={num} 
+                                onClick={() => {
+                                    if (num === 'C') setQueueNumber('');
+                                    else if (num === 'DEL') setQueueNumber(prev => prev.slice(0, -1));
+                                    else setQueueNumber(prev => prev + num);
+                                }} 
+                                className="bg-stone-100 py-3 font-black text-xl rounded-xl active:scale-95 hover:bg-stone-200 text-stone-700"
+                            >
+                                {num === 'DEL' ? <span className="material-symbols-outlined">backspace</span> : num}
+                            </button>
+                        ))}
+                    </div>
+                    <button onClick={() => setIsQueueModalOpen(false)} className="w-full py-3 bg-[#861b00] text-white font-black rounded-xl hover:bg-black transition-colors">ตกลง</button>
+                </div>
+            </div>
+        )
+    );
 
     // ==========================================
     // 🌟 หน้าจอ SUCCESS (ใบเสร็จ & ระบบปริ้นท์สลิป 80mm)
@@ -672,6 +705,8 @@ export default function CheckoutModal({ onClose }) {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
             <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-md" onClick={onClose} />
+            <QueueModal />
+            <QueueModal />
 
             {/* 🔴🌟 MEMBER PIN FLOW OVERLAY (สำหรับตัดเงิน E-Wallet) */}
             {isMemberPinFlow && (
@@ -949,6 +984,10 @@ export default function CheckoutModal({ onClose }) {
                                     </button>
                                 </div>
                             )}
+                                <button onClick={() => setIsQueueModalOpen(true)} className="w-full bg-stone-100 text-stone-600 border-2 border-stone-200 py-4 rounded-[1.25rem] font-black flex items-center justify-center gap-2 hover:bg-stone-200 transition-all active:scale-95">
+                                    <span className="material-symbols-outlined">confirmation_number</span> 
+                                    {queueNumber ? `คิวที่: ${queueNumber}` : 'ระบุคิวลูกค้า'}
+                                </button>
                             </div>
                         
 

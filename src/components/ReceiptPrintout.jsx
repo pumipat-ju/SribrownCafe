@@ -184,6 +184,11 @@ export default function ReceiptPrintout({ txn, printType = 'SHORT', taxForm = nu
                 /* 🛍️ โหมดที่ 2: บิลปกติ (SALE, TOPUP, EXPENSE) อิงโค้ดเดิมของเพื่อน */
                 /* ======================================================== */
                 <div className="print-only-receipt">
+                    <div className="text-center mb-4 border-b border-black border-dashed pb-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">คิวของคุณ (Queue No.)</p>
+                        <h1 className="text-6xl font-black text-black mt-1">{txn.queueNumber || '-'}</h1>
+                    </div>
+
                     <div className="text-center mb-2">
                         <h1 className="font-bold text-[16px] leading-tight">SRI BROWN CAFE</h1>
                         <p className="text-[10px] leading-tight">123 ถ.มิตรภาพ อ.เมือง จ.ขอนแก่น 40000</p>
