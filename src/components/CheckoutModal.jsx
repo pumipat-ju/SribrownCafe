@@ -970,64 +970,59 @@ export default function CheckoutModal({ onClose }) {
                                     </button>
                                 )}
 
-                                <div className="flex gap-3 bg-amber-50/30 border border-amber-200/60 p-2 rounded-[1.5rem]">
-                                    <div className="bg-white flex-1 flex items-center gap-2 px-4 rounded-xl border border-amber-100 shadow-sm">
-                                        <span className="material-symbols-outlined text-amber-500 text-[20px]">local_activity</span>
-                                        <select value={selectedCouponId} onChange={(e) => setSelectedCouponId(e.target.value)} className="bg-transparent font-bold text-[13px] outline-none text-stone-700 w-full h-full py-3 appearance-none cursor-pointer">
-                                            <option value="">-- เลือกคูปอง --</option>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white flex items-center gap-2 px-3 rounded-2xl border border-amber-200 shadow-sm">
+                                        <span className="material-symbols-outlined text-amber-500 text-[18px]">local_activity</span>
+                                        <select 
+                                            value={selectedCouponId} 
+                                            onChange={(e) => { 
+                                                const val = e.target.value; 
+                                                setSelectedCouponId(val); 
+                                                if (!val) setAppliedCoupon(null); 
+                                                else { 
+                                                    const coupon = marketing?.coupons?.find(c => String(c.id) === String(val)); 
+                                                    setAppliedCoupon(coupon || null); 
+                                                } 
+                                            }} 
+                                            className="bg-transparent font-bold text-[11px] outline-none text-stone-700 w-full h-full py-3 appearance-none cursor-pointer"
+                                        >
+                                            <option value="">-- คูปอง --</option>
                                             {marketing?.coupons?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                     </div>
-                                    <button onClick={handleApplyCoupon} className="bg-[#c27c2b] hover:bg-[#a66822] text-white px-6 rounded-xl font-bold shadow-sm active:scale-95 text-sm transition-colors">ใช้คูปอง</button>
-                                </div>
-                                <div className="flex gap-3 bg-emerald-50/30 border border-emerald-200/60 p-2 rounded-[1.5rem]">
-                                    <div className="bg-white flex-1 flex items-center gap-2 px-4 rounded-xl border border-emerald-100 shadow-sm">
-                                        <span className="material-symbols-outlined text-emerald-500 text-[20px]">
-                                            local_offer
-                                        </span>
-
-                                        <select
-                                            value={selectedPromotionId}
-                                            onChange={(e) => setSelectedPromotionId(e.target.value)}
-                                            className="bg-transparent font-bold text-[13px] outline-none text-stone-700 w-full h-full py-3 appearance-none cursor-pointer"
+                                    <div className="bg-white flex items-center gap-2 px-3 rounded-2xl border border-emerald-200 shadow-sm">
+                                        <span className="material-symbols-outlined text-emerald-500 text-[18px]">local_offer</span>
+                                        <select 
+                                            value={selectedPromotionId} 
+                                            onChange={(e) => { 
+                                                const val = e.target.value; 
+                                                setSelectedPromotionId(val); 
+                                                if (!val) setAppliedPromotion(null); 
+                                                else { 
+                                                    const promo = marketing?.promotions?.find(p => String(p.id) === String(val)); 
+                                                    if (promo && isPromoActive(promo) && isPromotionEligible(promo)) {
+                                                        setAppliedPromotion(promo);
+                                                    } else {
+                                                        setAppliedPromotion(null);
+                                                        alert('ไม่สามารถใช้โปรโมชั่นนี้ได้');
+                                                    }
+                                                } 
+                                            }} 
+                                            className="bg-transparent font-bold text-[11px] outline-none text-stone-700 w-full h-full py-3 appearance-none cursor-pointer"
                                         >
-                                            <option value="">-- เลือกโปรโมชั่น --</option>
-
-                                            {marketing?.promotions
-                                                ?.filter((p) => p.active === 1 || p.active === true || p.active === '1')
-                                                .map((p) => (
-                                                    <option key={p.id} value={p.id}>
-                                                        {p.name}
-                                                    </option>
-                                                ))}
+                                            <option value="">-- โปรโมชั่น --</option>
+                                            {marketing?.promotions?.filter(p => p.active === 1 || p.active === true || p.active === '1').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
                                     </div>
-
-                                    <button
-                                        onClick={handleApplyPromotion}
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-xl font-bold shadow-sm active:scale-95 text-sm transition-colors"
-                                    >
-                                        ใช้โปรโมชั่น
-                                    </button>
                                 </div>
                                 {appliedPromotion && (
-                                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-2 flex items-center justify-between text-xs font-bold">
-                                    <span>
-                                        ใช้โปร: {appliedPromotion.name}
-                                    </span>
-                                    <button
-                                        onClick={() => {
-                                            setAppliedPromotion(null);
-                                            setSelectedPromotionId('');
-                                        }}
-                                        className="text-emerald-700 hover:text-red-500"
-                                    >
-                                        ยกเลิก
-                                    </button>
-                                </div>
-                            )}
-                                <button onClick={() => setIsQueueModalOpen(true)} className="w-full bg-stone-100 text-stone-600 border-2 border-stone-200 py-4 rounded-[1.25rem] font-black flex items-center justify-center gap-2 hover:bg-stone-200 transition-all active:scale-95">
-                                    <span className="material-symbols-outlined">confirmation_number</span> 
+                                    <div className="hidden"></div>
+                                )}
+                                <button 
+                                    onClick={() => setIsQueueModalOpen(true)} 
+                                    className={`w-full py-2.5 rounded-xl font-bold text-[11px] flex items-center justify-center gap-2 transition-allactive:scale-95 shadow-sm border ${queueNumber ? 'bg-purple-100 border-purple-200 text-purple-900' : 'bg-whiteborder-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">confirmation_number</span> 
                                     {queueNumber ? `คิวที่: ${queueNumber}` : 'ระบุคิวลูกค้า'}
                                 </button>
                             </div>
