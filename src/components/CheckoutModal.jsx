@@ -40,6 +40,13 @@ export default function CheckoutModal({ onClose }) {
     const [queueNumber, setQueueNumber] = useState('');
     const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
+    // 🔐 Employee PIN Modal — ยืนยันพนักงานก่อนทำรายการ
+    const [empPinModal, setEmpPinModal] = useState({ isOpen: false, pendingMethod: null });
+    const [empPin, setEmpPin] = useState('');
+    const [empPinError, setEmpPinError] = useState('');
+    const [empPinShake, setEmpPinShake] = useState(false);
+    const [empPinSuccess, setEmpPinSuccess] = useState(null); // employee object เมื่อสำเร็จ
+
     // ==========================================
     // 🧮 ระบบคำนวณตัวเลข
     // ==========================================
@@ -248,7 +255,7 @@ export default function CheckoutModal({ onClose }) {
                 if (st.status === 'PAID') {
                     clearInterval(poll);
                     setQrStatus('paid');
-                    setTimeout(() => handleCompleteSale('QR'), 1000);
+                    setTimeout(() => openEmpPin('QR'), 1000);
                 }
             }, 3000);
 
@@ -287,7 +294,56 @@ export default function CheckoutModal({ onClose }) {
         setAppliedPromotion(promo);
     };
 
-    const handleCompleteSale = async (method) => {
+    // ==========================================
+    // 🔐 Employee PIN helpers (ยืนยันพนักงานก่อนทำรายการ)
+    // ==========================================
+    const openEmpPin = (method) => {
+        setEmpPin('');
+        setEmpPinError('');
+        setEmpPinShake(false);
+        setEmpPinSuccess(null);
+        setEmpPinModal({ isOpen: true, pendingMethod: method });
+    };
+
+    const closeEmpPin = () => {
+        setEmpPinModal({ isOpen: false, pendingMethod: null });
+        setEmpPin('');
+        setEmpPinError('');
+        setEmpPinSuccess(null);
+    };
+
+    const handleEmpPinDigit = (d) => {
+        if (empPinSuccess) return;
+        if (d === 'DEL') { setEmpPin(prev => prev.slice(0, -1)); return; }
+        if (d === 'C') { setEmpPin(''); return; }
+        if (empPin.length >= 6) return;
+        const next = empPin + d;
+        setEmpPin(next);
+        if (next.length === 6) {
+            const found = employees?.find(e => String(e.pin) === String(next));
+            if (found) {
+                setEmpPinSuccess(found);
+                setEmpPinError('');
+                const pendingMethod = empPinModal.pendingMethod;
+                setTimeout(() => {
+                    closeEmpPin();
+                    if (pendingMethod && pendingMethod.startsWith('TOPUP_')) {
+                        const actualMethod = pendingMethod.replace('TOPUP_', '');
+                        setAuthEmployee(found);
+                        handleExecuteTopup(actualMethod, found);
+                    } else {
+                        handleCompleteSale(pendingMethod, found);
+                    }
+                }, 800);
+            } else {
+                setEmpPinError('PIN ไม่ถูกต้อง กรุณาลองใหม่');
+                setEmpPinShake(true);
+                setTimeout(() => { setEmpPinShake(false); setEmpPin(''); }, 600);
+            }
+        }
+    };
+
+    const handleCompleteSale = async (method, verifiedEmployee) => {
         if (method === 'CASH' && (!receivedAmount || parseFloat(receivedAmount) < netTotal)) {
             return alert('กรุณาระบุเงินที่รับมาให้ครบถ้วน');
         }
@@ -350,7 +406,7 @@ export default function CheckoutModal({ onClose }) {
             date: now.toLocaleDateString('th-TH'),
             time: now.toLocaleTimeString('th-TH').slice(0, 5) + ' น.',
             desc: descText,
-            cashier: currentEmployee?.name || 'Staff',
+            cashier: verifiedEmployee?.name || currentEmployee?.name || 'Staff',
             items: JSON.stringify(cart.map(item => ({
                 ...item,
                 name: item.name_th || item.name_en || item.name || 'ไม่ระบุ'
@@ -422,10 +478,12 @@ export default function CheckoutModal({ onClose }) {
         }
     };
 
-    const handleExecuteTopup = async (method) => {
+    const handleExecuteTopup = async (method, verifiedEmployee) => {
         const addAmount = parseFloat(topupAmount);
         const newWallet = (selectedMember.wallet || 0) + addAmount;
         const updatedMember = { ...selectedMember, wallet: newWallet };
+
+        const resolvedEmployee = verifiedEmployee || authEmployee;
 
         const topupData = {
             bill_id: generateBillId('TOPUP', transactions),
@@ -434,7 +492,7 @@ export default function CheckoutModal({ onClose }) {
             method: method,
             date_raw: new Date().toISOString(),
             desc: `เติมเงินให้: ${selectedMember.name}`,
-            cashier: authEmployee?.name || currentEmployee?.name || 'Staff' // 🌟 ใช้ชื่อคนที่มากดรหัส (ถ้าไม่มีก็เอาคนที่ Login อยู่)
+            cashier: resolvedEmployee?.name || currentEmployee?.name || 'Staff'
         };
 
         try {
@@ -703,6 +761,7 @@ export default function CheckoutModal({ onClose }) {
         );
     }
     return (
+        <>
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
             <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-md" onClick={onClose} />
             <QueueModal />
@@ -744,26 +803,9 @@ export default function CheckoutModal({ onClose }) {
                             <h3 className="text-2xl font-black text-stone-800 mb-2">ยอดเงินไม่เพียงพอ!</h3>
                             <p className="text-stone-500 font-bold mb-6">ลูกค้ามียอด E-Wallet ฿{(selectedMember?.wallet || 0).toLocaleString()}<br />ขาดอีก <span className="text-red-500 font-black">฿{missingWalletAmount.toLocaleString()}</span></p>
                             <div className="flex flex-col gap-3">
-                                <button onClick={() => setTopupStep('PIN')} className="w-full py-4 bg-[#52a675] text-white font-black rounded-2xl shadow-md active:scale-95">เติมเงิน E-Wallet</button>
+                                <button onClick={() => setTopupStep('AMOUNT')} className="w-full py-4 bg-[#52a675] text-white font-black rounded-2xl shadow-md active:scale-95">เติมเงิน E-Wallet</button>
                                 <button onClick={resetTopupFlow} className="w-full py-4 bg-stone-100 text-stone-600 font-bold rounded-2xl hover:bg-stone-200">ยกเลิก (เปลี่ยนวิธีจ่าย)</button>
                             </div>
-                        </div>
-                    )}
-                    {topupStep === 'PIN' && (
-                        <div className="bg-white rounded-[2.5rem] p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col">
-                            <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
-                                <h3 className="text-xl font-black text-stone-800">ยืนยันรหัสพนักงาน</h3>
-                                <button onClick={resetTopupFlow} className="w-8 h-8 bg-stone-100 text-stone-500 rounded-full flex items-center justify-center"><span className="material-symbols-outlined text-sm">close</span></button>
-                            </div>
-                            <div className="flex justify-center mb-6 gap-3">
-                                {[...Array(6)].map((_, i) => (<div key={i} className={`w-5 h-5 rounded-full ${i < topupPin.length ? 'bg-[#861b00]' : 'bg-stone-200'}`}></div>))}
-                            </div>
-                            <div className="grid grid-cols-3 gap-2 mb-4">
-                                {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'DEL'].map(num => (
-                                    <button key={num} onClick={() => handleTopupNumClick(num, 'PIN')} className="bg-stone-50 py-4 font-black text-xl rounded-xl active:scale-95 hover:bg-stone-100">{num === 'DEL' ? <span className="material-symbols-outlined">backspace</span> : num}</button>
-                                ))}
-                            </div>
-                            <button onClick={handleVerifyPin} disabled={topupPin.length < 6} className={`w-full py-4 rounded-2xl font-black text-white ${topupPin.length >= 6 ? 'bg-[#861b00]' : 'bg-stone-300'}`}>ตรวจสอบ</button>
                         </div>
                     )}
                     {topupStep === 'AMOUNT' && (
@@ -809,7 +851,7 @@ export default function CheckoutModal({ onClose }) {
                                 ))}
                             </div>
                             {topupReceivedAmount && parseFloat(topupReceivedAmount) >= parseFloat(topupAmount) && <p className="text-center text-sm font-bold text-stone-600 mb-3">ทอนเงิน: ฿{(parseFloat(topupReceivedAmount) - parseFloat(topupAmount)).toLocaleString()}</p>}
-                            <button onClick={() => handleExecuteTopup('CASH')} disabled={!topupReceivedAmount || parseFloat(topupReceivedAmount) < parseFloat(topupAmount)} className={`w-full py-4 rounded-2xl font-black text-white ${topupReceivedAmount && parseFloat(topupReceivedAmount) >= parseFloat(topupAmount) ? 'bg-[#52a675]' : 'bg-stone-300'}`}>ยืนยันการเติมเงิน</button>
+                            <button onClick={() => { if (!topupReceivedAmount || parseFloat(topupReceivedAmount) < parseFloat(topupAmount)) return; openEmpPin('TOPUP_CASH'); }} disabled={!topupReceivedAmount || parseFloat(topupReceivedAmount) < parseFloat(topupAmount)} className={`w-full py-4 rounded-2xl font-black text-white ${topupReceivedAmount && parseFloat(topupReceivedAmount) >= parseFloat(topupAmount) ? 'bg-[#52a675]' : 'bg-stone-300'}`}>ยืนยันการเติมเงิน</button>
                         </div>
                     )}
                     {topupStep === 'PAY_QR' && (
@@ -822,7 +864,7 @@ export default function CheckoutModal({ onClose }) {
                                 <span className="material-symbols-outlined text-[100px] text-stone-300 mb-2">qr_code_2</span>
                                 <p className="font-bold text-stone-500">สแกนจ่าย <span className="text-[#861b00] font-black text-xl">฿{parseFloat(topupAmount).toLocaleString()}</span></p>
                             </div>
-                            <button onClick={() => handleExecuteTopup('QR')} className="w-full py-4 bg-[#4b7deb] text-white rounded-2xl font-black shadow-md active:scale-95">ดำเนินการเรียบร้อย</button>
+                            <button onClick={() => openEmpPin('TOPUP_QR')} className="w-full py-4 bg-[#4b7deb] text-white rounded-2xl font-black shadow-md active:scale-95">ดำเนินการเรียบร้อย</button>
                         </div>
                     )}
                     {topupStep === 'SUCCESS' && (
@@ -1076,7 +1118,7 @@ export default function CheckoutModal({ onClose }) {
                             </div>
                             <div className="shrink-0 flex flex-col gap-4">
                                 <div className="flex justify-between items-center px-2"><span className="text-stone-400 font-bold text-sm">เงินทอน:</span><span className={`text-3xl font-black ${change < 0 ? 'text-stone-300' : 'text-stone-800'}`}>฿{change >= 0 ? change.toLocaleString() : '0.00'}</span></div>
-                                <button onClick={() => handleCompleteSale('CASH')} className={`w-full py-5 text-white text-lg font-black rounded-[1.25rem] transition-all active:scale-95 flex items-center justify-center gap-2 ${(!receivedAmount || parseFloat(receivedAmount) < netTotal) ? 'bg-stone-300 shadow-none' : 'bg-[#52a675] hover:bg-[#41875e] shadow-[0_8px_16px_-6px_rgba(82,166,117,0.4)]'}`} disabled={!receivedAmount || parseFloat(receivedAmount) < netTotal}><span className="material-symbols-outlined text-[24px]">task_alt</span> ยืนยันชำระเงิน</button>
+                                <button onClick={() => openEmpPin('CASH')} className={`w-full py-5 text-white text-lg font-black rounded-[1.25rem] transition-all active:scale-95 flex items-center justify-center gap-2 ${(!receivedAmount || parseFloat(receivedAmount) < netTotal) ? 'bg-stone-300 shadow-none' : 'bg-[#52a675] hover:bg-[#41875e] shadow-[0_8px_16px_-6px_rgba(82,166,117,0.4)]'}`} disabled={!receivedAmount || parseFloat(receivedAmount) < netTotal}><span className="material-symbols-outlined text-[24px]">task_alt</span> ยืนยันชำระเงิน</button>
                             </div>
                         </div>
                     )}
@@ -1154,7 +1196,7 @@ export default function CheckoutModal({ onClose }) {
                 
                             {/* ปุ่ม Manual Confirm (polling ช้า แต่ลูกค้าสแกนแล้ว) */}
                             {qrStatus === 'ready' && (
-                                <button onClick={() => { if (qrPollRef) clearInterval(qrPollRef); handleCompleteSale('QR'); }}
+                                <button onClick={() => { if (qrPollRef) clearInterval(qrPollRef); openEmpPin('QR'); }}
                                     className="w-full py-4 bg-stone-800 hover:bg-black text-white text-sm font-black rounded-[1.25rem] active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0">
                                     <span className="material-symbols-outlined text-[20px]">task_alt</span>
                                     ยืนยันด้วยตนเอง (ถ้าสแกนแล้ว)
@@ -1165,5 +1207,80 @@ export default function CheckoutModal({ onClose }) {
                 </div>
             </div>
         </div>
+
+            {/* 🔐 Employee PIN Modal — ยืนยันพนักงานก่อนทำรายการ */}
+            {empPinModal.isOpen && (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-stone-900/75 backdrop-blur-sm" onClick={closeEmpPin} />
+                    <div
+                        className="relative z-10 w-full max-w-[320px] bg-white rounded-[2.5rem] shadow-[0_32px_80px_rgba(0,0,0,0.4)] overflow-hidden animate-in zoom-in-95 duration-200"
+                        style={{ animation: empPinShake ? 'empPinShake 0.55s ease-in-out' : undefined }}
+                    >
+                        {/* Header */}
+                        <div className={`w-full px-6 pt-8 pb-6 flex flex-col items-center gap-3 ${empPinModal.pendingMethod?.startsWith('TOPUP') ? 'bg-[#861b00]' : empPinModal.pendingMethod === 'QR' ? 'bg-[#1e4a9c]' : 'bg-[#52a675]'}`}>
+                            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-[30px] text-white">
+                                    {empPinModal.pendingMethod?.startsWith('TOPUP') ? 'account_balance_wallet' : empPinModal.pendingMethod === 'QR' ? 'qr_code_scanner' : 'payments'}
+                                </span>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-white/65 text-[11px] font-bold uppercase tracking-[0.18em]">ยืนยันตัวตนพนักงาน</p>
+                                <p className="text-white text-[17px] font-black mt-0.5">
+                                    {empPinModal.pendingMethod === 'CASH' ? 'ชำระเงินสด' : empPinModal.pendingMethod === 'QR' ? 'ชำระผ่าน QR' : empPinModal.pendingMethod === 'TOPUP_CASH' ? 'เติมเงิน (สด)' : 'เติมเงิน (QR)'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-7 pb-7 pt-5 flex flex-col items-center gap-4">
+                            <p className="text-stone-400 text-[12px] font-bold text-center">ใส่ PIN พนักงานคนใดก็ได้ 6 หลัก<br />เพื่อบันทึกชื่อผู้ทำรายการ</p>
+
+                            {empPinSuccess ? (
+                                <div className="flex flex-col items-center gap-2 py-2 animate-in zoom-in duration-200">
+                                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-emerald-600 text-[28px]">check_circle</span>
+                                    </div>
+                                    <p className="text-emerald-600 font-black text-[15px]">{empPinSuccess.name}</p>
+                                    <p className="text-emerald-400 text-[11px] font-bold">{empPinSuccess.role === 'admin' ? '👑 Admin' : '🧑‍💼 Staff'}</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex gap-3">
+                                        {Array.from({ length: 6 }).map((_, i) => (
+                                            <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${i < empPin.length ? 'bg-[#861b00] border-[#861b00] scale-110' : 'bg-transparent border-stone-300'}`} />
+                                        ))}
+                                    </div>
+                                    <div className="h-5 flex items-center justify-center">
+                                        {empPinError && (
+                                            <p className="text-red-500 text-[12px] font-bold flex items-center gap-1 animate-in fade-in duration-200">
+                                                <span className="material-symbols-outlined text-[14px]">error</span>{empPinError}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2.5 w-full">
+                                        {['1','2','3','4','5','6','7','8','9'].map(d => (
+                                            <button key={d} onClick={() => handleEmpPinDigit(d)} className="h-14 rounded-2xl bg-stone-100 text-stone-800 text-[20px] font-black active:scale-95 hover:bg-stone-200 transition-all">{d}</button>
+                                        ))}
+                                        <button onClick={closeEmpPin} className="h-14 rounded-2xl bg-transparent text-stone-400 active:scale-95 hover:bg-red-50 hover:text-red-400 transition-all flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[22px]">close</span>
+                                        </button>
+                                        <button onClick={() => handleEmpPinDigit('0')} className="h-14 rounded-2xl bg-stone-100 text-stone-800 text-[20px] font-black active:scale-95 hover:bg-stone-200 transition-all">0</button>
+                                        <button onClick={() => handleEmpPinDigit('DEL')} className="h-14 rounded-2xl bg-transparent text-stone-400 active:scale-95 hover:bg-stone-100 transition-all flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[22px]">backspace</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    <style>{`
+                        @keyframes empPinShake {
+                            0%,100%{transform:translateX(0)} 15%{transform:translateX(-8px)} 30%{transform:translateX(8px)}
+                            45%{transform:translateX(-6px)} 60%{transform:translateX(6px)} 75%{transform:translateX(-4px)} 90%{transform:translateX(4px)}
+                        }
+                    `}</style>
+                </div>
+            )}
+        </>
     );
 }
