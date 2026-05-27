@@ -59,6 +59,10 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
     const [deleteMember, setDeleteMember] = useState(null);
     const [deletePin, setDeletePin] = useState('');
 
+    // 🌟 Member History Drawer
+    const [historyMember, setHistoryMember] = useState(null);
+    const [historyFilter, setHistoryFilter] = useState('ALL');
+
     useEffect(() => {
         if (crmAction === 'addMember') {
             setIsAddModalOpen(true);
@@ -683,11 +687,22 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                         <td className="py-4 px-6 whitespace-nowrap"><span className="font-bold text-stone-400 text-sm">{(index + 1).toString().padStart(2, '0')}</span></td>
                                         <td className="py-4 px-6 whitespace-nowrap">
                                             <div className="flex items-center gap-4">
-                                                <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shrink-0 uppercase shadow-inner ${showArchived ? 'bg-stone-200 text-stone-500' : 'bg-gradient-to-br from-stone-100 to-stone-200 text-stone-700'}`}>
+                                                <button
+                                                    onClick={() => { setHistoryMember(member); setHistoryFilter('ALL'); }}
+                                                    className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shrink-0 uppercase shadow-inner transition-all hover:scale-110 hover:shadow-md hover:ring-2 hover:ring-[#861b00]/30 ${showArchived ? 'bg-stone-200 text-stone-500' : 'bg-gradient-to-br from-stone-100 to-stone-200 text-stone-700'}`}
+                                                    title="ดูประวัติรายการ"
+                                                >
                                                     {avatarChar}
-                                                </div>
+                                                </button>
                                                 <div className={showArchived ? 'opacity-50' : ''}>
-                                                    <p className="font-black text-[15px] text-stone-800">{displayName} {showArchived && '(ถูกระงับ)'}</p>
+                                                    <button
+                                                        onClick={() => { setHistoryMember(member); setHistoryFilter('ALL'); }}
+                                                        className="font-black text-[15px] text-stone-800 hover:text-[#861b00] transition-colors text-left group/name flex items-center gap-1"
+                                                        title="ดูประวัติรายการ"
+                                                    >
+                                                        {displayName} {showArchived && '(ถูกระงับ)'}
+                                                        <span className="material-symbols-outlined text-[13px] text-stone-300 group-hover/name:text-[#861b00] transition-colors">history</span>
+                                                    </button>
                                                     <p className="text-[11px] text-stone-400 font-bold mt-0.5">{fPhone(member.phone)} {member.age ? `• อายุ ${member.age} ปี` : ''}</p>
                                                 </div>
                                             </div>
@@ -1021,6 +1036,200 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                     )}
                 </div>
             )}
+
+            {/* 🗂️ 7. Member History Drawer */}
+            {historyMember && (() => {
+                const memberTxns = transactions?.filter(t => {
+                    if (!t.desc) return false;
+                    const memberNameFull = historyMember.nickname
+                        ? `${historyMember.nickname} (${historyMember.name})`
+                        : historyMember.name;
+                    const nameVariants = [
+                        historyMember.name,
+                        historyMember.nickname,
+                        memberNameFull,
+                    ].filter(Boolean).map(n => n.toLowerCase());
+                    const descLower = (t.desc || '').toLowerCase();
+                    return nameVariants.some(n => descLower.includes(n));
+                }) || [];
+
+                const filtered = historyFilter === 'ALL'
+                    ? memberTxns
+                    : memberTxns.filter(t => t.type === historyFilter);
+
+                const totalTopup = memberTxns.filter(t => t.type === 'TOPUP').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+                const totalSpend = memberTxns.filter(t => t.type === 'SALE' && t.status !== 'VOIDED').reduce((s, t) => s + parseFloat(t.amount || t.total || 0), 0);
+                const avatarChar = (historyMember.nickname || historyMember.name || '?').charAt(0);
+                const tier = getTier(historyMember);
+                const displayName = historyMember.nickname ? `${historyMember.nickname} (${historyMember.name})` : historyMember.name;
+
+                return (
+                    <div className="fixed inset-0 z-[160] flex justify-end">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-stone-900/50 backdrop-blur-sm animate-in fade-in duration-300"
+                            onClick={() => setHistoryMember(null)}
+                        />
+
+                        {/* Drawer Panel */}
+                        <div className="relative w-full max-w-lg h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-400">
+
+                            {/* Header */}
+                            <div className="bg-gradient-to-br from-stone-50 to-white border-b border-stone-100 p-6 shrink-0">
+                                <div className="flex items-start justify-between mb-5">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 rounded-[1.2rem] bg-gradient-to-br from-stone-200 to-stone-300 text-stone-700 flex items-center justify-center font-black text-xl uppercase shadow-inner">
+                                            {avatarChar}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-lg text-stone-800 leading-tight">{displayName}</h3>
+                                            <p className="text-xs text-stone-400 font-bold">{fPhone(historyMember.phone)}</p>
+                                            <span className={`inline-block mt-1 px-3 py-0.5 rounded-full text-[10px] font-black ${tier.color}`}>{tier.name}</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setHistoryMember(null)}
+                                        className="w-9 h-9 flex items-center justify-center bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">close</span>
+                                    </button>
+                                </div>
+
+                                {/* Summary Stats */}
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="bg-white rounded-2xl p-3 border border-stone-100 shadow-sm text-center">
+                                        <p className="text-[9px] text-stone-400 font-black uppercase tracking-wider mb-1">รายการทั้งหมด</p>
+                                        <p className="text-xl font-black text-stone-800">{memberTxns.length}</p>
+                                    </div>
+                                    <div className="bg-white rounded-2xl p-3 border border-stone-100 shadow-sm text-center">
+                                        <p className="text-[9px] text-emerald-500 font-black uppercase tracking-wider mb-1">เติมเงินรวม</p>
+                                        <p className="text-base font-black text-emerald-600">฿{totalTopup.toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-white rounded-2xl p-3 border border-stone-100 shadow-sm text-center">
+                                        <p className="text-[9px] text-[#861b00] font-black uppercase tracking-wider mb-1">ยอดซื้อรวม</p>
+                                        <p className="text-base font-black text-[#861b00]">฿{totalSpend.toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                {/* Wallet & Points */}
+                                <div className="flex gap-3 mt-3">
+                                    <div className="flex-1 bg-gradient-to-r from-[#861b00]/5 to-red-50 rounded-2xl p-3 border border-[#861b00]/10 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-[#861b00] text-[20px]">account_balance_wallet</span>
+                                        <div>
+                                            <p className="text-[9px] text-stone-400 font-black uppercase">Wallet</p>
+                                            <p className="font-black text-[#861b00] text-sm">฿{fMoney(historyMember.wallet)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 bg-amber-50 rounded-2xl p-3 border border-amber-100 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-amber-500 text-[20px]">stars</span>
+                                        <div>
+                                            <p className="text-[9px] text-stone-400 font-black uppercase">Points</p>
+                                            <p className="font-black text-amber-600 text-sm">฿{fMoney(historyMember.points)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filter Tabs */}
+                            <div className="flex gap-1.5 px-5 py-3 border-b border-stone-100 shrink-0 bg-white">
+                                {[
+                                    { id: 'ALL', label: 'ทั้งหมด', icon: 'list' },
+                                    { id: 'TOPUP', label: 'เติมเงิน', icon: 'payments' },
+                                    { id: 'SALE', label: 'ซื้อสินค้า', icon: 'shopping_bag' },
+                                ].map(f => (
+                                    <button
+                                        key={f.id}
+                                        onClick={() => setHistoryFilter(f.id)}
+                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black transition-all ${historyFilter === f.id ? 'bg-[#861b00] text-white shadow-md shadow-[#861b00]/20' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                                    >
+                                        <span className="material-symbols-outlined text-[14px]">{f.icon}</span>
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Transaction List */}
+                            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-stone-50/50">
+                                {filtered.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full py-20 text-stone-300">
+                                        <span className="material-symbols-outlined text-5xl mb-3">receipt_long</span>
+                                        <p className="font-bold text-sm text-stone-400">ไม่พบประวัติรายการ</p>
+                                    </div>
+                                ) : filtered.map((t, i) => {
+                                    const isSale = t.type === 'SALE' || !t.type;
+                                    const isTopup = t.type === 'TOPUP';
+                                    const isVoided = t.status === 'VOIDED';
+                                    const amount = parseFloat(t.amount || t.total || 0);
+
+                                    let items = [];
+                                    try {
+                                        items = typeof t.items === 'string' ? JSON.parse(t.items) : (Array.isArray(t.items) ? t.items : []);
+                                    } catch (e) { }
+
+                                    const rawStr = t.date_raw || t.created_at;
+                                    let displayDate = t.date || '';
+                                    let displayTime = t.time || '';
+                                    if (rawStr) {
+                                        try {
+                                            const d = new Date(typeof rawStr === 'string' && rawStr.includes(' ') && !rawStr.includes('T') ? rawStr.replace(' ', 'T') : rawStr);
+                                            displayDate = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+                                            displayTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                                        } catch (e) { }
+                                    }
+
+                                    return (
+                                        <div
+                                            key={t.id || i}
+                                            className={`bg-white rounded-[1.4rem] p-4 border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isVoided ? 'border-red-100 opacity-60' : 'border-stone-100'}`}
+                                        >
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                                        isVoided ? 'bg-red-50 text-red-400' :
+                                                        isTopup ? 'bg-emerald-50 text-emerald-500' :
+                                                        'bg-[#861b00]/5 text-[#861b00]'
+                                                    }`}>
+                                                        <span className="material-symbols-outlined text-[18px]">
+                                                            {isVoided ? 'cancel' : isTopup ? 'payments' : 'shopping_bag'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-[12px] text-stone-700">
+                                                            {isTopup ? 'เติม E-Wallet' : 'ซื้อสินค้า'}
+                                                            {isVoided && <span className="ml-2 text-[10px] text-red-400 font-black bg-red-50 px-2 py-0.5 rounded-full">ยกเลิก</span>}
+                                                        </p>
+                                                        <p className="text-[10px] text-stone-400 font-bold">{t.bill_id || t.id} • {t.cashier}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <p className={`font-black text-base ${isVoided ? 'line-through text-stone-300' : isTopup ? 'text-emerald-600' : 'text-[#861b00]'}`}>
+                                                        {isTopup ? '+' : ''}฿{amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                    </p>
+                                                    <p className="text-[10px] text-stone-400 font-bold">{displayDate}</p>
+                                                    <p className="text-[10px] text-stone-300 font-bold">{displayTime}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Items breakdown */}
+                                            {items.length > 0 && (
+                                                <div className="bg-stone-50 rounded-xl p-3 space-y-1.5 border border-stone-100 mt-1">
+                                                    {items.map((item, j) => (
+                                                        <div key={j} className="flex justify-between items-center text-[11px]">
+                                                            <span className="text-stone-600 font-bold truncate pr-2">{item.name_th || item.name_en || item.name}</span>
+                                                            <span className="text-stone-400 font-bold shrink-0">{item.qty}x ฿{parseFloat(item.price).toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                        </div>
+                    </div>
+                );
+            })()}
 
         </div>
     );
