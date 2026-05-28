@@ -62,6 +62,14 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
     // 🌟 Member History Drawer
     const [historyMember, setHistoryMember] = useState(null);
     const [historyFilter, setHistoryFilter] = useState('ALL');
+    const [historyDateFrom, setHistoryDateFrom] = useState('');
+    const [historyDateTo, setHistoryDateTo] = useState('');
+    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+    const [calPickingEnd, setCalPickingEnd] = useState(false);
+    const [calHover, setCalHover] = useState(null);
+    const [calViewYear, setCalViewYear] = useState(new Date().getFullYear());
+    const [calViewMonth, setCalViewMonth] = useState(new Date().getMonth());
+    const [calMode, setCalMode] = useState('day');
 
     useEffect(() => {
         if (crmAction === 'addMember') {
@@ -688,7 +696,7 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                         <td className="py-4 px-6 whitespace-nowrap">
                                             <div className="flex items-center gap-4">
                                                 <button
-                                                    onClick={() => { setHistoryMember(member); setHistoryFilter('ALL'); }}
+                                                    onClick={() => { setHistoryMember(member); setHistoryFilter('ALL'); setHistoryDateFrom(''); setHistoryDateTo(''); }}
                                                     className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shrink-0 uppercase shadow-inner transition-all hover:scale-110 hover:shadow-md hover:ring-2 hover:ring-[#861b00]/30 ${showArchived ? 'bg-stone-200 text-stone-500' : 'bg-gradient-to-br from-stone-100 to-stone-200 text-stone-700'}`}
                                                     title="ดูประวัติรายการ"
                                                 >
@@ -696,7 +704,7 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                                 </button>
                                                 <div className={showArchived ? 'opacity-50' : ''}>
                                                     <button
-                                                        onClick={() => { setHistoryMember(member); setHistoryFilter('ALL'); }}
+                                                        onClick={() => { setHistoryMember(member); setHistoryFilter('ALL'); setHistoryDateFrom(''); setHistoryDateTo(''); }}
                                                         className="font-black text-[15px] text-stone-800 hover:text-[#861b00] transition-colors text-left group/name flex items-center gap-1"
                                                         title="ดูประวัติรายการ"
                                                     >
@@ -1053,9 +1061,20 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                     return nameVariants.some(n => descLower.includes(n));
                 }) || [];
 
-                const filtered = historyFilter === 'ALL'
-                    ? memberTxns
-                    : memberTxns.filter(t => t.type === historyFilter);
+                const filtered = memberTxns.filter(t => {
+                    if (historyFilter !== 'ALL' && t.type !== historyFilter) return false;
+                    if (historyDateFrom || historyDateTo) {
+                        const rawStr = t.date_raw || t.created_at;
+                        if (!rawStr) return false;
+                        try {
+                            const txDate = new Date(typeof rawStr === 'string' && rawStr.includes(' ') && !rawStr.includes('T') ? rawStr.replace(' ', 'T') : rawStr);
+                            const txISO = txDate.toISOString().split('T')[0];
+                            if (historyDateFrom && txISO < historyDateFrom) return false;
+                            if (historyDateTo && txISO > historyDateTo) return false;
+                        } catch (e) { return false; }
+                    }
+                    return true;
+                });
 
                 const totalTopup = memberTxns.filter(t => t.type === 'TOPUP').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
                 const totalSpend = memberTxns.filter(t => t.type === 'SALE' && t.status !== 'VOIDED').reduce((s, t) => s + parseFloat(t.amount || t.total || 0), 0);
@@ -1130,24 +1149,198 @@ export default function MembersTab({ searchTerm, crmAction, setCrmAction }) {
                                 </div>
                             </div>
 
-                            {/* Filter Tabs */}
-                            <div className="flex gap-1.5 px-5 py-3 border-b border-stone-100 shrink-0 bg-white">
-                                {[
-                                    { id: 'ALL', label: 'ทั้งหมด', icon: 'list' },
-                                    { id: 'TOPUP', label: 'เติมเงิน', icon: 'payments' },
-                                    { id: 'SALE', label: 'ซื้อสินค้า', icon: 'shopping_bag' },
-                                ].map(f => (
+                            {/* Filter Tabs + Date Range */}
+                            <div className="px-5 pt-3 pb-3 border-b border-stone-100 shrink-0 bg-white space-y-2.5">
+                                {/* Type Filter + Calendar Button Row */}
+                                <div className="flex items-center gap-1.5">
+                                    {[
+                                        { id: 'ALL', label: 'ทั้งหมด', icon: 'list' },
+                                        { id: 'TOPUP', label: 'เติมเงิน', icon: 'payments' },
+                                        { id: 'SALE', label: 'ซื้อสินค้า', icon: 'shopping_bag' },
+                                    ].map(f => (
+                                        <button
+                                            key={f.id}
+                                            onClick={() => setHistoryFilter(f.id)}
+                                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black transition-all ${historyFilter === f.id ? 'bg-[#861b00] text-white shadow-md shadow-[#861b00]/20' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">{f.icon}</span>
+                                            {f.label}
+                                        </button>
+                                    ))}
+                                    <div className="flex-1" />
+                                    {/* 📅 Calendar Trigger Button */}
                                     <button
-                                        key={f.id}
-                                        onClick={() => setHistoryFilter(f.id)}
-                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black transition-all ${historyFilter === f.id ? 'bg-[#861b00] text-white shadow-md shadow-[#861b00]/20' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                                        onClick={() => { setIsCalendarOpen(v => !v); setCalMode('day'); }}
+                                        className={`relative flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black transition-all border ${(historyDateFrom || historyDateTo) ? 'bg-[#861b00] text-white border-[#861b00] shadow-md shadow-[#861b00]/20' : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'}`}
                                     >
-                                        <span className="material-symbols-outlined text-[14px]">{f.icon}</span>
-                                        {f.label}
+                                        <span className="material-symbols-outlined text-[15px]">calendar_month</span>
+                                        {(historyDateFrom || historyDateTo) ? (
+                                            <span>
+                                                {historyDateFrom ? new Date(historyDateFrom + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '...'}
+                                                {' — '}
+                                                {historyDateTo ? new Date(historyDateTo + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '...'}
+                                            </span>
+                                        ) : 'เลือกวันที่'}
+                                        {(historyDateFrom || historyDateTo) && (
+                                            <span
+                                                onClick={e => { e.stopPropagation(); setHistoryDateFrom(''); setHistoryDateTo(''); setCalPickingEnd(false); setCalHover(null); }}
+                                                className="material-symbols-outlined text-[13px] ml-0.5 hover:opacity-70"
+                                            >close</span>
+                                        )}
                                     </button>
-                                ))}
-                            </div>
+                                </div>
 
+                                {/* 📅 Custom Calendar Popover */}
+                                {isCalendarOpen && (() => {
+                                    const MONTHS_TH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+                                    const DAYS_TH = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+                                    const toISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+                                    const firstDay = new Date(calViewYear, calViewMonth, 1).getDay();
+                                    const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+
+                                    const handleDayClick = (iso) => {
+                                        if (!calPickingEnd) {
+                                            setHistoryDateFrom(iso);
+                                            setHistoryDateTo('');
+                                            setCalPickingEnd(true);
+                                        } else {
+                                            if (iso < historyDateFrom) {
+                                                setHistoryDateTo(historyDateFrom);
+                                                setHistoryDateFrom(iso);
+                                            } else {
+                                                setHistoryDateTo(iso);
+                                            }
+                                            setCalPickingEnd(false);
+                                            setCalHover(null);
+                                            setIsCalendarOpen(false);
+                                        }
+                                    };
+
+                                    const isInRange = (iso) => {
+                                        const end = calPickingEnd ? calHover : historyDateTo;
+                                        if (!historyDateFrom || !end) return false;
+                                        const [a, b] = historyDateFrom <= end ? [historyDateFrom, end] : [end, historyDateFrom];
+                                        return iso > a && iso < b;
+                                    };
+                                    const isStart = (iso) => iso === historyDateFrom;
+                                    const isEnd = (iso) => {
+                                        if (calPickingEnd && calHover) return iso === (calHover >= historyDateFrom ? calHover : historyDateFrom);
+                                        return iso === historyDateTo;
+                                    };
+
+                                    const yearRange = Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 5 + i);
+
+                                    return (
+                                        <div className="relative z-[200]">
+                                            {/* Backdrop */}
+                                            <div className="fixed inset-0 z-[199]" onClick={() => { setIsCalendarOpen(false); setCalPickingEnd(false); setCalHover(null); }} />
+                                            <div className="absolute right-0 top-1 z-[200] w-80 bg-white rounded-[1.6rem] shadow-2xl border border-stone-100 overflow-hidden animate-in zoom-in-95 fade-in duration-200 origin-top-right">
+
+                                                {/* Calendar Header */}
+                                                <div className="bg-gradient-to-br from-[#861b00] to-[#a12c12] p-4">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <button onClick={() => { if (calViewMonth === 0) { setCalViewMonth(11); setCalViewYear(y => y-1); } else setCalViewMonth(m => m-1); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all">
+                                                            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => setCalMode(m => m === 'month' ? 'day' : 'month')} className="text-white font-black text-sm hover:bg-white/10 px-2 py-1 rounded-lg transition-all">
+                                                                {MONTHS_TH[calViewMonth]}
+                                                            </button>
+                                                            <button onClick={() => setCalMode(m => m === 'year' ? 'day' : 'year')} className="text-white/80 font-black text-sm hover:bg-white/10 px-2 py-1 rounded-lg transition-all">
+                                                                {calViewYear + 543}
+                                                            </button>
+                                                        </div>
+                                                        <button onClick={() => { if (calViewMonth === 11) { setCalViewMonth(0); setCalViewYear(y => y+1); } else setCalViewMonth(m => m+1); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all">
+                                                            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                                                        </button>
+                                                    </div>
+                                                    {/* Hint text */}
+                                                    <p className="text-center text-white/60 text-[10px] font-bold">
+                                                        {!historyDateFrom || (!calPickingEnd && !historyDateFrom) ? '📅 เลือกวันเริ่มต้น' : calPickingEnd ? '📅 เลือกวันสิ้นสุด (หรือกดวันเดิมสำหรับ 1 วัน)' : '✅ เลือกแล้ว'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="p-3">
+                                                    {/* Month Picker */}
+                                                    {calMode === 'month' && (
+                                                        <div className="grid grid-cols-3 gap-1.5">
+                                                            {MONTHS_TH.map((m, idx) => (
+                                                                <button key={idx} onClick={() => { setCalViewMonth(idx); setCalMode('day'); }}
+                                                                    className={`py-2.5 rounded-xl text-[11px] font-black transition-all ${idx === calViewMonth ? 'bg-[#861b00] text-white shadow-md' : 'bg-stone-50 text-stone-600 hover:bg-stone-100'}`}>
+                                                                    {m.slice(0,3)}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Year Picker */}
+                                                    {calMode === 'year' && (
+                                                        <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto">
+                                                            {yearRange.map(y => (
+                                                                <button key={y} onClick={() => { setCalViewYear(y); setCalMode('day'); }}
+                                                                    className={`py-2.5 rounded-xl text-[11px] font-black transition-all ${y === calViewYear ? 'bg-[#861b00] text-white shadow-md' : 'bg-stone-50 text-stone-600 hover:bg-stone-100'}`}>
+                                                                    {y + 543}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Day Grid */}
+                                                    {calMode === 'day' && (
+                                                        <>
+                                                            <div className="grid grid-cols-7 mb-1">
+                                                                {DAYS_TH.map(d => <div key={d} className="text-center text-[10px] font-black text-stone-400 py-1">{d}</div>)}
+                                                            </div>
+                                                            <div className="grid grid-cols-7 gap-y-0.5">
+                                                                {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+                                                                {Array.from({ length: daysInMonth }).map((_, i) => {
+                                                                    const day = i + 1;
+                                                                    const iso = `${calViewYear}-${String(calViewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                                                                    const start = isStart(iso);
+                                                                    const end = isEnd(iso);
+                                                                    const inRange = isInRange(iso);
+                                                                    const isToday = iso === toISO(new Date());
+                                                                    return (
+                                                                        <button
+                                                                            key={day}
+                                                                            onClick={() => handleDayClick(iso)}
+                                                                            onMouseEnter={() => calPickingEnd && setCalHover(iso)}
+                                                                            onMouseLeave={() => calPickingEnd && setCalHover(null)}
+                                                                            className={`
+                                                                                h-8 text-[12px] font-black transition-all relative
+                                                                                ${start || end ? 'bg-[#861b00] text-white rounded-full shadow-md z-10' : ''}
+                                                                                ${inRange ? 'bg-[#861b00]/10 text-[#861b00] rounded-none' : ''}
+                                                                                ${!start && !end && !inRange ? 'text-stone-700 hover:bg-stone-100 rounded-full' : ''}
+                                                                                ${isToday && !start && !end ? 'ring-2 ring-[#861b00]/30 rounded-full' : ''}
+                                                                            `}
+                                                                        >
+                                                                            {day}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Footer Actions */}
+                                                <div className="flex items-center justify-between px-4 pb-4 gap-2">
+                                                    <button
+                                                        onClick={() => { setHistoryDateFrom(''); setHistoryDateTo(''); setCalPickingEnd(false); setCalHover(null); }}
+                                                        className="text-[11px] font-black text-stone-400 hover:text-red-400 transition-colors px-2 py-1"
+                                                    >ล้างทั้งหมด</button>
+                                                    <button
+                                                        onClick={() => { setIsCalendarOpen(false); setCalPickingEnd(false); setCalHover(null); }}
+                                                        className="px-4 py-2 bg-stone-800 text-white text-[11px] font-black rounded-xl hover:bg-stone-700 transition-all"
+                                                    >ตกลง</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
                             {/* Transaction List */}
                             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-stone-50/50">
                                 {filtered.length === 0 ? (
