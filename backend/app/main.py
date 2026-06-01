@@ -5,6 +5,7 @@ from .database import Base, engine, SessionLocal
 from . import models
 
 from .routers import employees, members, menu, transactions, inventory, categories, marketing, hardware, payments  # ← เพิ่ม payments
+from .routers.employees import roles_router
 
 # Base.metadata.drop_all(bind=engine) # Uncomment this if you want to wipe everything once
 Base.metadata.create_all(bind=engine)
@@ -187,6 +188,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(roles_router)       # ← ต้องอยู่ก่อน employees.router
 app.include_router(employees.router)
 app.include_router(members.router)
 app.include_router(menu.router)

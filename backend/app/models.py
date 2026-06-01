@@ -16,6 +16,16 @@ class Employee(Base):
     phone = Column(String(20), nullable=True)
 
 
+class Role(Base):
+    __tablename__ = "roles"
+
+    id    = Column(Integer, primary_key=True, index=True)
+    name  = Column(String(50), unique=True, nullable=False)
+    label = Column(String(100), nullable=False)
+    color = Column(String(200), default="bg-stone-100 text-stone-700 border-stone-200")
+    icon  = Column(String(10), default="🧑‍💼")
+
+
 class Member(Base):
     __tablename__ = "members"
 

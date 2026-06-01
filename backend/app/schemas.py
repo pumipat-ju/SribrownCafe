@@ -3,6 +3,24 @@ from typing import Optional
 from datetime import datetime, date
 
 
+class RoleBase(BaseModel):
+    name: str
+    label: str
+    color: Optional[str] = "bg-stone-100 text-stone-700 border-stone-200"
+    icon: Optional[str] = "🧑‍💼"
+
+
+class RoleCreate(RoleBase):
+    pass
+
+
+class RoleOut(RoleBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
 class EmployeeBase(BaseModel):
     name: str
     pin: str
